@@ -930,7 +930,7 @@ var adminLoginTemplate = template.Must(template.New("admin-login").Parse(`<!doct
     <canvas id="edge-particles" aria-hidden="true"></canvas>
     <header class="site-header" aria-label="Primary">
       <a class="brand" href="/" aria-label="England Systems home">
-        <span class="brand-mark"><img src="/static/logo.png" alt="" /></span>
+        <span class="brand-mark"><img src="/static/logo.webp" alt="" /></span>
         <span class="brand-name">England Systems</span>
       </a>
     </header>
@@ -975,7 +975,7 @@ var adminDashboardTemplate = template.Must(template.New("admin-dashboard").Funcs
     <canvas id="edge-particles" aria-hidden="true"></canvas>
     <header class="site-header" aria-label="Primary">
       <a class="brand" href="/" aria-label="England Systems home">
-        <span class="brand-mark"><img src="/static/logo.png" alt="" /></span>
+        <span class="brand-mark"><img src="/static/logo.webp" alt="" /></span>
         <span class="brand-name">England Systems</span>
       </a>
       <button class="nav-toggle" type="button" aria-controls="primary-navigation" aria-expanded="false" aria-label="Open navigation">
