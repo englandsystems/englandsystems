@@ -14,6 +14,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/mail"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	_ "modernc.org/sqlite"
 )
@@ -173,6 +175,7 @@ func (a *app) contact(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		http.ServeFileFS(w, r, staticFiles, "static/contact.html")
 	case http.MethodPost:
+		r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, "Unable to read the contact form.", http.StatusBadRequest)
 			return
@@ -562,11 +565,100 @@ func validateMessage(name, email, phone, message string) error {
 		return fmt.Errorf("Phone must be %d characters or fewer.", maxPhoneLength)
 	case len([]rune(message)) > maxMessageLength:
 		return fmt.Errorf("How can we help must be %d characters or fewer.", maxMessageLength)
-	case !strings.Contains(email, "@"):
+	case containsControlCharacter(name):
+		return errors.New("Name contains invalid characters.")
+	case !strings.ContainsFunc(name, unicode.IsLetter):
+		return errors.New("Name must contain a letter.")
+	case !isValidEmail(email):
 		return errors.New("Email must be valid.")
+	case phone != "" && !isValidPhone(phone):
+		return errors.New("Phone must be a valid number with 7 to 15 digits.")
+	case containsUnsafeTextControl(message):
+		return errors.New("How can we help contains invalid characters.")
+	case !strings.ContainsFunc(message, func(character rune) bool {
+		return unicode.IsLetter(character) || unicode.IsNumber(character)
+	}):
+		return errors.New("How can we help must contain text.")
 	default:
 		return nil
 	}
+}
+
+func containsControlCharacter(value string) bool {
+	return strings.ContainsFunc(value, unicode.IsControl)
+}
+
+func containsUnsafeTextControl(value string) bool {
+	return strings.ContainsFunc(value, func(character rune) bool {
+		return unicode.IsControl(character) && character != '\n' && character != '\r' && character != '\t'
+	})
+}
+
+func isValidEmail(email string) bool {
+	if strings.ContainsAny(email, "\r\n\t ") || strings.Count(email, "@") != 1 {
+		return false
+	}
+
+	address, err := mail.ParseAddress(email)
+	if err != nil || address.Address != email {
+		return false
+	}
+
+	domain := email[strings.LastIndexByte(email, '@')+1:]
+	labels := strings.Split(domain, ".")
+	if len(labels) < 2 {
+		return false
+	}
+	for _, label := range labels {
+		if label == "" || label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+		for _, character := range label {
+			if !(character >= 'a' && character <= 'z') && !(character >= 'A' && character <= 'Z') &&
+				!(character >= '0' && character <= '9') && character != '-' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func isValidPhone(phone string) bool {
+	digits := make([]byte, 0, len(phone))
+	parenthesisOpen := false
+	parenthesisHasDigit := false
+	for index := 0; index < len(phone); index++ {
+		character := phone[index]
+		switch {
+		case character >= '0' && character <= '9':
+			digits = append(digits, character)
+			if parenthesisOpen {
+				parenthesisHasDigit = true
+			}
+		case character == '+' && index == 0:
+		case character == '(' && !parenthesisOpen:
+			parenthesisOpen = true
+			parenthesisHasDigit = false
+		case character == ')' && parenthesisOpen && parenthesisHasDigit:
+			parenthesisOpen = false
+		case character == ' ' || character == '-' || character == '.':
+		default:
+			return false
+		}
+	}
+
+	if parenthesisOpen || len(digits) < 7 || len(digits) > 15 {
+		return false
+	}
+
+	allSame := true
+	for _, digit := range digits[1:] {
+		if digit != digits[0] {
+			allSame = false
+			break
+		}
+	}
+	return !allSame
 }
 
 func credentialsValid(username, password string) bool {

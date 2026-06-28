@@ -109,9 +109,64 @@ function updateCharacterCounter(textarea) {
 function initContactEnhancements() {
   document.querySelectorAll("[data-character-counter]").forEach(updateCharacterCounter);
 
+  document.querySelectorAll("[data-contact-form]").forEach((form) => {
+    if (form.dataset.validationReady === "true") {
+      return;
+    }
+
+    form.dataset.validationReady = "true";
+    form.addEventListener("input", (event) => validateContactField(event.target));
+    form.addEventListener("submit", (event) => {
+      form.querySelectorAll("input, textarea").forEach(validateContactField);
+      if (!form.checkValidity()) {
+        event.preventDefault();
+        form.reportValidity();
+      }
+    });
+  });
+
   const success = document.querySelector("[data-contact-success]");
   if (success) {
     success.hidden = new URLSearchParams(window.location.search).get("sent") !== "1";
+  }
+}
+
+function validateContactField(field) {
+  if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) {
+    return;
+  }
+
+  field.setCustomValidity("");
+  const value = field.value.trim();
+
+  if (field.required && value === "") {
+    field.setCustomValidity("This field is required.");
+    return;
+  }
+
+  if (field.name === "name" && value !== "" && !/\p{L}/u.test(value)) {
+    field.setCustomValidity("Enter a name containing at least one letter.");
+  }
+
+  if (field.name === "message" && value !== "" && !/[\p{L}\p{N}]/u.test(value)) {
+    field.setCustomValidity("Enter a message containing text.");
+  }
+
+  if (field.name === "email" && value !== "") {
+    const emailPattern = /^[^\s@]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$/;
+    if (!emailPattern.test(value)) {
+      field.setCustomValidity("Enter a valid email address.");
+    }
+  }
+
+  if (field.name === "phone" && value !== "") {
+    const digits = value.replace(/\D/g, "");
+    const hasValidCharacters = /^\+?[0-9 ().-]+$/.test(value);
+    const hasBalancedParentheses = !/[()]/.test(value) || /^\+?[^()]*(\([^()]+\)[^()]*)+$/.test(value);
+    const allDigitsMatch = /^(\d)\1+$/.test(digits);
+    if (!hasValidCharacters || !hasBalancedParentheses || digits.length < 7 || digits.length > 15 || allDigitsMatch) {
+      field.setCustomValidity("Enter a valid phone number with 7 to 15 digits.");
+    }
   }
 }
 

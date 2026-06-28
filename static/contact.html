@@ -30,7 +30,7 @@
 
     <main class="contact-page">
       <section class="contact-layout" aria-labelledby="contact-title">
-        <form class="contact-form" action="/contact" method="post">
+        <form class="contact-form" action="/contact" method="post" data-contact-form>
           <div class="form-heading">
             <p class="eyebrow">Contact</p>
             <h1 id="contact-title">How can we help?</h1>
@@ -48,7 +48,7 @@
 
           <label>
             <span>Phone</span>
-            <input name="phone" type="tel" autocomplete="tel" maxlength="40" />
+            <input name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="40" pattern="[+]?[0-9 ().-]*[0-9][0-9 ().-]*" title="Enter a phone number using 7 to 15 digits." />
           </label>
 
           <label>

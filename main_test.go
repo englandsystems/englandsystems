@@ -127,6 +127,62 @@ func TestSaveContactMessagePurgesOnlyOldTrackingRows(t *testing.T) {
 	}
 }
 
+func TestValidateMessage(t *testing.T) {
+	tests := []struct {
+		name    string
+		email   string
+		phone   string
+		message string
+		valid   bool
+	}{
+		{name: "Phillip England", email: "phillip@example.com", phone: "+1 (918) 555-0123", message: "Please call me.", valid: true},
+		{name: "Phillip England", email: "phillip@example.com", phone: "", message: "Email me instead.", valid: true},
+		{name: "Phillip England", email: "not-an-email", phone: "918-555-0123", message: "Hello", valid: false},
+		{name: "Phillip England", email: "phillip@example", phone: "918-555-0123", message: "Hello", valid: false},
+		{name: "Phillip England", email: "phillip@example..com", phone: "918-555-0123", message: "Hello", valid: false},
+		{name: "Phillip England", email: "phillip@example.com", phone: "call-me-maybe", message: "Hello", valid: false},
+		{name: "Phillip England", email: "phillip@example.com", phone: "12345", message: "Hello", valid: false},
+		{name: "Phillip England", email: "phillip@example.com", phone: "111-111-1111", message: "Hello", valid: false},
+		{name: "Phillip England", email: "phillip@example.com", phone: "(918 555-0123", message: "Hello", valid: false},
+		{name: "Phillip\nEngland", email: "phillip@example.com", phone: "918-555-0123", message: "Hello", valid: false},
+		{name: "12345", email: "phillip@example.com", phone: "918-555-0123", message: "Hello", valid: false},
+		{name: "Phillip England", email: "phillip@example.com", phone: "918-555-0123", message: "!!!", valid: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.email+"/"+test.phone, func(t *testing.T) {
+			err := validateMessage(test.name, test.email, test.phone, test.message)
+			if test.valid && err != nil {
+				t.Fatalf("validateMessage returned %v", err)
+			}
+			if !test.valid && err == nil {
+				t.Fatal("validateMessage accepted invalid input")
+			}
+		})
+	}
+}
+
+func TestContactRejectsInvalidPhoneWithoutSaving(t *testing.T) {
+	db := newTestDB(t)
+	application := &app{db: db}
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/contact",
+		strings.NewReader("name=Test+User&email=test%40example.com&phone=definitely-fake&message=Hello"),
+	)
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+
+	application.contact(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("contact status = %d, want %d; body: %s", response.Code, http.StatusBadRequest, response.Body.String())
+	}
+	if got := countRows(t, db, `SELECT COUNT(*) FROM contact_messages`); got != 0 {
+		t.Fatalf("contact_messages count = %d, want 0", got)
+	}
+}
+
 func TestPersistPosixProfileEnvCreatesManagedBlock(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".profile")
 	values := map[string]string{
