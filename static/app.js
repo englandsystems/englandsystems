@@ -54,7 +54,6 @@ function swapPage(nextDocument, url, shouldPushState) {
   }
 
   initContactEnhancements();
-  initMobileNav();
 }
 
 async function navigate(url, shouldPushState = true) {
@@ -170,46 +169,6 @@ function validateContactField(field) {
   }
 }
 
-function initMobileNav() {
-  const header = document.querySelector(".site-header");
-  const toggle = document.querySelector(".nav-toggle");
-  const nav = document.querySelector(".site-nav");
-
-  if (!header || !toggle || !nav || toggle.dataset.navReady === "true") {
-    return;
-  }
-
-  toggle.dataset.navReady = "true";
-
-  function setOpen(isOpen) {
-    header.classList.toggle("nav-open", isOpen);
-    toggle.setAttribute("aria-expanded", String(isOpen));
-    toggle.setAttribute("aria-label", isOpen ? "Close navigation" : "Open navigation");
-  }
-
-  toggle.addEventListener("click", () => {
-    setOpen(toggle.getAttribute("aria-expanded") !== "true");
-  });
-
-  nav.addEventListener("click", (event) => {
-    if (event.target.closest("a")) {
-      setOpen(false);
-    }
-  });
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      setOpen(false);
-    }
-  });
-
-  document.addEventListener("click", (event) => {
-    if (!header.contains(event.target)) {
-      setOpen(false);
-    }
-  });
-}
-
 function normalizeSectionId(hash) {
   const sectionId = hash.replace(/^#/, "");
   return sectionIds.includes(sectionId) ? sectionId : "home";
@@ -295,5 +254,4 @@ window.addEventListener("hashchange", () => {
 });
 
 initContactEnhancements();
-initMobileNav();
 initSectionNavigation();
