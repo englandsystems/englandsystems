@@ -768,7 +768,7 @@ body {
   display: flex;
   min-width: 0;
   gap: 4px;
-  padding: 2px 0 0;
+  padding: 8px 0 0;
   pointer-events: auto;
 }
 
