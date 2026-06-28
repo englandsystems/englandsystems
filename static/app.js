@@ -1,0 +1,244 @@
+const transitionLinks = 'a[data-transition-link]';
+const sectionIds = ["home", "about", "contact"];
+
+function getMain(documentRoot = document) {
+  return documentRoot.querySelector("main");
+}
+
+function shouldHandleNavigation(event, link) {
+  if (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey ||
+    link.target
+  ) {
+    return false;
+  }
+
+  return link.origin === window.location.origin && link.pathname !== window.location.pathname;
+}
+
+async function fetchPage(url) {
+  const response = await fetch(url, {
+    headers: {
+      Accept: "text/html",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Unable to load ${url}`);
+  }
+
+  const html = await response.text();
+  return new DOMParser().parseFromString(html, "text/html");
+}
+
+function swapPage(nextDocument, url, shouldPushState) {
+  const currentMain = getMain();
+  const nextMain = getMain(nextDocument);
+
+  if (!currentMain || !nextMain) {
+    window.location.href = url;
+    return;
+  }
+
+  document.title = nextDocument.title;
+  currentMain.className = nextMain.className;
+  currentMain.innerHTML = nextMain.innerHTML;
+
+  if (shouldPushState) {
+    window.history.pushState({}, "", url);
+  }
+
+  initContactEnhancements();
+  initMobileNav();
+}
+
+async function navigate(url, shouldPushState = true) {
+  const nextDocument = await fetchPage(url);
+
+  if (!document.startViewTransition) {
+    swapPage(nextDocument, url, shouldPushState);
+    return;
+  }
+
+  document.startViewTransition(() => {
+    swapPage(nextDocument, url, shouldPushState);
+  });
+}
+
+document.addEventListener("click", (event) => {
+  const link = event.target.closest(transitionLinks);
+
+  if (!link || !shouldHandleNavigation(event, link)) {
+    return;
+  }
+
+  event.preventDefault();
+  navigate(link.href).catch(() => {
+    window.location.href = link.href;
+  });
+});
+
+window.addEventListener("popstate", () => {
+  if (document.querySelector("[data-section-panel]")) {
+    setActiveSection(window.location.hash || "home", false);
+    return;
+  }
+
+  navigate(window.location.href, false).catch(() => {
+    window.location.reload();
+  });
+});
+
+function updateCharacterCounter(textarea) {
+  const counter = textarea.parentElement?.querySelector("[data-character-count]");
+  const maxLength = Number(textarea.getAttribute("maxlength"));
+
+  if (!counter || !maxLength) {
+    return;
+  }
+
+  const remaining = Math.max(0, maxLength - textarea.value.length);
+  counter.textContent = `${remaining} character${remaining === 1 ? "" : "s"} left`;
+}
+
+function initContactEnhancements() {
+  document.querySelectorAll("[data-character-counter]").forEach(updateCharacterCounter);
+
+  const success = document.querySelector("[data-contact-success]");
+  if (success) {
+    success.hidden = new URLSearchParams(window.location.search).get("sent") !== "1";
+  }
+}
+
+function initMobileNav() {
+  const header = document.querySelector(".site-header");
+  const toggle = document.querySelector(".nav-toggle");
+  const nav = document.querySelector(".site-nav");
+
+  if (!header || !toggle || !nav || toggle.dataset.navReady === "true") {
+    return;
+  }
+
+  toggle.dataset.navReady = "true";
+
+  function setOpen(isOpen) {
+    header.classList.toggle("nav-open", isOpen);
+    toggle.setAttribute("aria-expanded", String(isOpen));
+    toggle.setAttribute("aria-label", isOpen ? "Close navigation" : "Open navigation");
+  }
+
+  toggle.addEventListener("click", () => {
+    setOpen(toggle.getAttribute("aria-expanded") !== "true");
+  });
+
+  nav.addEventListener("click", (event) => {
+    if (event.target.closest("a")) {
+      setOpen(false);
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      setOpen(false);
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!header.contains(event.target)) {
+      setOpen(false);
+    }
+  });
+}
+
+function normalizeSectionId(hash) {
+  const sectionId = hash.replace(/^#/, "");
+  return sectionIds.includes(sectionId) ? sectionId : "home";
+}
+
+function setActiveSection(sectionId, shouldPushState = true) {
+  const activeSection = normalizeSectionId(sectionId);
+  const panels = document.querySelectorAll("[data-section-panel]");
+
+  if (!panels.length) {
+    return;
+  }
+
+  document.body.dataset.activeSection = activeSection;
+
+  panels.forEach((panel) => {
+    const isActive = panel.id === activeSection;
+    panel.hidden = false;
+    panel.setAttribute("aria-hidden", String(!isActive));
+
+    if (isActive) {
+      window.requestAnimationFrame(() => {
+        panel.classList.add("is-active");
+      });
+    } else {
+      panel.classList.remove("is-active");
+      window.setTimeout(() => {
+        if (!panel.classList.contains("is-active")) {
+          panel.hidden = true;
+        }
+      }, 380);
+    }
+  });
+
+  document.querySelectorAll("[data-section-link]").forEach((link) => {
+    const linkSection = normalizeSectionId(link.hash);
+    const isCurrent = linkSection === activeSection;
+
+    if (isCurrent) {
+      link.setAttribute("aria-current", "page");
+    } else {
+      link.removeAttribute("aria-current");
+    }
+  });
+
+  if (shouldPushState) {
+    const nextUrl = activeSection === "home" ? window.location.pathname : `#${activeSection}`;
+    window.history.pushState({ sectionId: activeSection }, "", nextUrl);
+  }
+
+  window.dispatchEvent(new CustomEvent("sectionchange", { detail: { sectionId: activeSection } }));
+}
+
+function initSectionNavigation() {
+  const panels = document.querySelectorAll("[data-section-panel]");
+
+  if (!panels.length) {
+    return;
+  }
+
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest("[data-section-link]");
+
+    if (!link || link.pathname !== window.location.pathname || link.origin !== window.location.origin) {
+      return;
+    }
+
+    event.preventDefault();
+    setActiveSection(link.hash);
+  });
+
+  setActiveSection(window.location.hash || "home", false);
+}
+
+document.addEventListener("input", (event) => {
+  if (event.target.matches("[data-character-counter]")) {
+    updateCharacterCounter(event.target);
+  }
+});
+
+window.addEventListener("hashchange", () => {
+  setActiveSection(window.location.hash || "home", false);
+});
+
+initContactEnhancements();
+initMobileNav();
+initSectionNavigation();

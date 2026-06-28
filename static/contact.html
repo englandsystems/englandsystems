@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Contact | England Systems</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <canvas id="edge-particles" aria-hidden="true"></canvas>
+
+    <header class="site-header" aria-label="Primary">
+      <a class="brand" href="/" aria-label="England Systems home">
+        <span class="brand-mark">
+          <img src="/static/logo.png" alt="" />
+        </span>
+        <span class="brand-name">England Systems</span>
+      </a>
+      <button class="nav-toggle" type="button" aria-controls="primary-navigation" aria-expanded="false" aria-label="Open navigation">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <nav class="site-nav" id="primary-navigation" aria-label="Page sections">
+        <a href="/#home">Home</a>
+        <a href="/#about">About</a>
+        <a href="/#contact">Contact</a>
+      </nav>
+    </header>
+
+    <main class="contact-page">
+      <section class="contact-layout" aria-labelledby="contact-title">
+        <form class="contact-form" action="/contact" method="post">
+          <div class="form-heading">
+            <p class="eyebrow">Contact</p>
+            <h1 id="contact-title">How can we help?</h1>
+          </div>
+          <p class="form-success" data-contact-success hidden>Message received. We will follow up soon.</p>
+          <label>
+            <span>Name</span>
+            <input name="name" type="text" autocomplete="name" maxlength="120" required />
+          </label>
+
+          <label>
+            <span>Email</span>
+            <input name="email" type="email" autocomplete="email" maxlength="254" required />
+          </label>
+
+          <label>
+            <span>Phone</span>
+            <input name="phone" type="tel" autocomplete="tel" maxlength="40" />
+          </label>
+
+          <label>
+            <span>How can we help?</span>
+            <textarea name="message" rows="6" maxlength="1000" data-character-counter required></textarea>
+            <small class="character-count" data-character-count>1000 characters left</small>
+          </label>
+
+          <button class="button primary" type="submit">Send</button>
+        </form>
+      </section>
+    </main>
+
+    <script src="/static/particles.js"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

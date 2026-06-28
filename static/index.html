@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>England Systems</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body data-active-section="home">
+    <canvas id="edge-particles" aria-hidden="true"></canvas>
+
+    <header class="site-header" aria-label="Primary">
+      <a class="brand" href="#home" aria-label="England Systems home" data-section-link>
+        <span class="brand-mark">
+          <img src="/static/logo.png" alt="" />
+        </span>
+        <span class="brand-name">England Systems</span>
+      </a>
+      <button class="nav-toggle" type="button" aria-controls="primary-navigation" aria-expanded="false" aria-label="Open navigation">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <nav class="site-nav" id="primary-navigation" aria-label="Page sections">
+        <a href="#home" data-section-link>Home</a>
+        <a href="#about" data-section-link>About</a>
+        <a href="#contact" data-section-link>Contact</a>
+      </nav>
+    </header>
+
+    <main class="home-page">
+      <section class="hero home-section is-active" id="home" aria-labelledby="hero-title" data-section-panel>
+        <div class="hero-copy">
+          <p class="eyebrow">Systems. Software. Infrastructure.</p>
+          <h1 id="hero-title">England Systems</h1>
+          <p class="lede">
+            How can we help make your business more productive?
+          </p>
+          <p class="hero-support">
+            We evaluate where your business is today, then help implement
+            software and systems that improve productivity and longevity.
+          </p>
+          <div class="hero-actions" aria-label="Page actions">
+            <a class="button primary" href="#contact" data-section-link>Contact</a>
+            <a class="button secondary" href="https://github.com/phillip-england/englandsystems">GitHub</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="about-section home-section" id="about" aria-labelledby="about-title" data-section-panel hidden>
+        <div class="about-copy">
+          <p class="eyebrow">About</p>
+          <div class="about-heading">
+            <h2 id="about-title">From Chick-fil-A to Software Development</h2>
+            <figure class="about-photo">
+              <img src="/static/me.webp" alt="Phillip England" />
+              <figcaption>Phillip England, founder of England Systems</figcaption>
+            </figure>
+          </div>
+          <p>
+            England Systems grew out of my work in finance across two
+            Chick-fil-A locations in Tulsa, Oklahoma. I taught myself software
+            development by solving real operational problems: invoices,
+            translation workflows, birthday-message automation, websites,
+            reporting graphs, and tools that made work clearer.
+          </p>
+          <p>
+            The work starts by understanding how the business actually runs,
+            then removing friction with practical systems, useful software,
+            better documentation, or team education.
+          </p>
+        </div>
+      </section>
+
+      <section class="home-contact home-section" id="contact" aria-labelledby="contact-title" data-section-panel hidden>
+        <div class="contact-layout">
+          <form class="contact-form" action="/contact" method="post">
+            <div class="form-heading">
+              <p class="eyebrow">Contact</p>
+              <h2 id="contact-title">How can we help?</h2>
+            </div>
+            <label>
+              <span>Name</span>
+              <input name="name" autocomplete="name" maxlength="120" required />
+            </label>
+            <label>
+              <span>Email</span>
+              <input type="email" name="email" autocomplete="email" maxlength="254" required />
+            </label>
+            <label>
+              <span>Phone</span>
+              <input type="tel" name="phone" autocomplete="tel" maxlength="40" />
+            </label>
+            <label>
+              <span>How can we help?</span>
+              <textarea name="message" maxlength="1000" data-character-counter required></textarea>
+              <small class="character-count" data-character-count>1000 characters left</small>
+            </label>
+            <button class="button primary" type="submit">Send</button>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/particles.js"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
