@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"embed"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -25,10 +26,11 @@ import (
 )
 
 const (
-	adminUsernameEnv = "ENGLANDSYSTEMS_ADMIN_USERNAME"
-	adminPasswordEnv = "ENGLANDSYSTEMS_ADMIN_PASSWORD"
-	sessionSecretEnv = "ENGLANDSYSTEMS_SESSION_SECRET"
-	dbPathEnv        = "ENGLANDSYSTEMS_DB_PATH"
+	adminUsernameEnv   = "ENGLANDSYSTEMS_ADMIN_USERNAME"
+	adminPasswordEnv   = "ENGLANDSYSTEMS_ADMIN_PASSWORD"
+	sessionSecretEnv   = "ENGLANDSYSTEMS_SESSION_SECRET"
+	dbPathEnv          = "ENGLANDSYSTEMS_DB_PATH"
+	credentialsPathEnv = "ENGLANDSYSTEMS_CREDENTIALS_PATH"
 
 	maxNameLength    = 120
 	maxEmailLength   = 254
@@ -51,6 +53,11 @@ var staticFiles embed.FS
 
 type app struct {
 	db *sql.DB
+}
+
+type adminCredentialValues struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 type contactMessage struct {
@@ -141,6 +148,7 @@ Options:
 Environment:
   PORT                         Web server port. Defaults to 9944.
   ENGLANDSYSTEMS_DB_PATH       SQLite database path override.
+  ENGLANDSYSTEMS_CREDENTIALS_PATH
   ENGLANDSYSTEMS_ADMIN_USERNAME
   ENGLANDSYSTEMS_ADMIN_PASSWORD
 
@@ -562,20 +570,20 @@ func validateMessage(name, email, phone, message string) error {
 }
 
 func credentialsValid(username, password string) bool {
-	expectedUsername := os.Getenv(adminUsernameEnv)
-	expectedPassword := os.Getenv(adminPasswordEnv)
-	if expectedUsername == "" || expectedPassword == "" {
+	credentials, err := loadAdminCredentials()
+	if err != nil || credentials.Username == "" || credentials.Password == "" {
 		return false
 	}
 
-	usernameOK := hmac.Equal([]byte(username), []byte(expectedUsername))
-	passwordOK := hmac.Equal([]byte(password), []byte(expectedPassword))
+	usernameOK := hmac.Equal([]byte(username), []byte(credentials.Username))
+	passwordOK := hmac.Equal([]byte(password), []byte(credentials.Password))
 	return usernameOK && passwordOK
 }
 
 func setSession(w http.ResponseWriter) {
 	expires := time.Now().UTC().Add(sessionDuration)
-	payload := fmt.Sprintf("%s|%d", os.Getenv(adminUsernameEnv), expires.Unix())
+	credentials, _ := loadAdminCredentials()
+	payload := fmt.Sprintf("%s|%d", credentials.Username, expires.Unix())
 	signature := sign(payload)
 	value := base64.RawURLEncoding.EncodeToString([]byte(payload + "|" + signature))
 
@@ -621,7 +629,8 @@ func isAuthenticated(r *http.Request) bool {
 		return false
 	}
 
-	if parts[0] != os.Getenv(adminUsernameEnv) {
+	credentials, err := loadAdminCredentials()
+	if err != nil || parts[0] != credentials.Username {
 		return false
 	}
 
@@ -642,7 +651,8 @@ func sessionSecret() []byte {
 	if secret := os.Getenv(sessionSecretEnv); secret != "" {
 		return []byte(secret)
 	}
-	sum := sha256.Sum256([]byte(os.Getenv(adminUsernameEnv) + ":" + os.Getenv(adminPasswordEnv)))
+	credentials, _ := loadAdminCredentials()
+	sum := sha256.Sum256([]byte(credentials.Username + ":" + credentials.Password))
 	return sum[:]
 }
 
@@ -692,14 +702,97 @@ func setCredentials(args []string) error {
 		adminUsernameEnv: username,
 		adminPasswordEnv: password,
 	}
-	if err := persistUserEnv(values); err != nil {
+	path, err := credentialsPath()
+	if err != nil {
+		return err
+	}
+	if err := persistAdminCredentials(path, adminCredentialValues{Username: username, Password: password}); err != nil {
 		return err
 	}
 	for key, value := range values {
 		os.Setenv(key, value)
 	}
 
-	fmt.Println("Saved admin credentials to the user environment.")
+	fmt.Printf("Saved admin credentials to %s. The running server will use them immediately.\n", path)
+	return nil
+}
+
+func credentialsPath() (string, error) {
+	if path := os.Getenv(credentialsPathEnv); path != "" {
+		if !filepath.IsAbs(path) {
+			return "", fmt.Errorf("%s must be an absolute path", credentialsPathEnv)
+		}
+		return filepath.Clean(path), nil
+	}
+
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("locate user config directory: %w", err)
+	}
+	if !filepath.IsAbs(configDir) {
+		return "", fmt.Errorf("user config directory must be an absolute path: %s", configDir)
+	}
+	return filepath.Join(configDir, "englandsystems", "credentials.json"), nil
+}
+
+func loadAdminCredentials() (adminCredentialValues, error) {
+	path, err := credentialsPath()
+	if err != nil {
+		return adminCredentialValues{}, err
+	}
+
+	data, err := os.ReadFile(path)
+	if err == nil {
+		var credentials adminCredentialValues
+		if err := json.Unmarshal(data, &credentials); err != nil {
+			return adminCredentialValues{}, fmt.Errorf("read admin credentials from %s: %w", path, err)
+		}
+		return credentials, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return adminCredentialValues{}, fmt.Errorf("read admin credentials from %s: %w", path, err)
+	}
+
+	// Keep environment variables as a compatibility path for existing deployments.
+	return adminCredentialValues{
+		Username: os.Getenv(adminUsernameEnv),
+		Password: os.Getenv(adminPasswordEnv),
+	}, nil
+}
+
+func persistAdminCredentials(path string, credentials adminCredentialValues) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return fmt.Errorf("create credentials directory: %w", err)
+	}
+	data, err := json.Marshal(credentials)
+	if err != nil {
+		return fmt.Errorf("encode admin credentials: %w", err)
+	}
+	data = append(data, '\n')
+
+	temp, err := os.CreateTemp(filepath.Dir(path), ".credentials-*")
+	if err != nil {
+		return fmt.Errorf("create temporary credentials file: %w", err)
+	}
+	tempPath := temp.Name()
+	defer os.Remove(tempPath)
+	if err := temp.Chmod(0o600); err != nil {
+		temp.Close()
+		return fmt.Errorf("secure temporary credentials file: %w", err)
+	}
+	if _, err := temp.Write(data); err != nil {
+		temp.Close()
+		return fmt.Errorf("write temporary credentials file: %w", err)
+	}
+	if err := temp.Close(); err != nil {
+		return fmt.Errorf("close temporary credentials file: %w", err)
+	}
+	if runtime.GOOS == "windows" {
+		_ = os.Remove(path)
+	}
+	if err := os.Rename(tempPath, path); err != nil {
+		return fmt.Errorf("install credentials file: %w", err)
+	}
 	return nil
 }
 
