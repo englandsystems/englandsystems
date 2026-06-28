@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
 	"errors"
 	"os"
@@ -9,6 +10,64 @@ import (
 	"testing"
 	"time"
 )
+
+func TestHandleCLIHelpPrintsClearHelp(t *testing.T) {
+	var out bytes.Buffer
+
+	handled, err := handleCLI([]string{"help"}, &out)
+	if err != nil {
+		t.Fatalf("handle help: %v", err)
+	}
+	if !handled {
+		t.Fatal("help command should be handled")
+	}
+
+	content := out.String()
+	for _, want := range []string{
+		"Usage:",
+		"englandsystems [command]",
+		"db-path",
+		"set-credentials",
+		"PORT                         Web server port. Defaults to 9944.",
+		"ENGLANDSYSTEMS_DB_PATH",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("help missing %q:\n%s", want, content)
+		}
+	}
+}
+
+func TestHandleCLIDBPathPrintsResolvedPath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "custom.sqlite3")
+	t.Setenv(dbPathEnv, path)
+	var out bytes.Buffer
+
+	handled, err := handleCLI([]string{"db-path"}, &out)
+	if err != nil {
+		t.Fatalf("handle db-path: %v", err)
+	}
+	if !handled {
+		t.Fatal("db-path command should be handled")
+	}
+	if got := strings.TrimSpace(out.String()); got != path {
+		t.Fatalf("db-path output = %q, want %q", got, path)
+	}
+}
+
+func TestHandleCLIUnknownCommandShowsHelp(t *testing.T) {
+	var out bytes.Buffer
+
+	handled, err := handleCLI([]string{"bogus"}, &out)
+	if err == nil {
+		t.Fatal("unknown command should return an error")
+	}
+	if !handled {
+		t.Fatal("unknown command should be handled")
+	}
+	if content := out.String(); !strings.Contains(content, "Usage:") {
+		t.Fatalf("unknown command should print help:\n%s", content)
+	}
+}
 
 func TestSaveContactMessageLimitsSubmissionsPerIP(t *testing.T) {
 	db := newTestDB(t)

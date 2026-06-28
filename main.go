@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -62,10 +63,11 @@ type contactMessage struct {
 }
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "set-credentials" {
-		if err := setCredentials(os.Args[2:]); err != nil {
-			log.Fatal(err)
-		}
+	handled, err := handleCLI(os.Args[1:], os.Stdout)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if handled {
 		return
 	}
 
@@ -91,11 +93,62 @@ func main() {
 	mux.HandleFunc("/admin/logout", application.adminLogout)
 	mux.HandleFunc("/admin/messages/delete", application.deleteMessage)
 
-	addr := ":" + getEnv("PORT", "8080")
+	addr := ":" + getEnv("PORT", "9944")
 	log.Printf("England Systems listening on http://localhost%s", addr)
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func handleCLI(args []string, stdout io.Writer) (bool, error) {
+	if len(args) == 0 {
+		return false, nil
+	}
+
+	switch args[0] {
+	case "help", "--help", "-h":
+		fmt.Fprint(stdout, helpText())
+		return true, nil
+	case "db-path", "database-path":
+		path, err := databasePath()
+		if err != nil {
+			return true, err
+		}
+		fmt.Fprintln(stdout, path)
+		return true, nil
+	case "set-credentials":
+		return true, setCredentials(args[1:])
+	default:
+		fmt.Fprint(stdout, helpText())
+		return true, fmt.Errorf("unknown command %q", args[0])
+	}
+}
+
+func helpText() string {
+	return `England Systems
+
+Usage:
+  englandsystems [command]
+
+Commands:
+  help                         Show this help screen.
+  db-path                      Print the resolved SQLite database path.
+  set-credentials              Save admin login credentials.
+
+Options:
+  -h, --help                   Show this help screen.
+
+Environment:
+  PORT                         Web server port. Defaults to 9944.
+  ENGLANDSYSTEMS_DB_PATH       SQLite database path override.
+  ENGLANDSYSTEMS_ADMIN_USERNAME
+  ENGLANDSYSTEMS_ADMIN_PASSWORD
+
+Examples:
+  englandsystems
+  englandsystems db-path
+  englandsystems set-credentials --username "admin" --password "password"
+`
 }
 
 func (a *app) route(w http.ResponseWriter, r *http.Request) {
@@ -632,7 +685,7 @@ func setCredentials(args []string) error {
 	}
 
 	if username == "" || password == "" {
-		return errors.New(`usage: englandsystem set-credentials --username "someusername" --password "somepassword"`)
+		return errors.New(`usage: englandsystems set-credentials --username "someusername" --password "somepassword"`)
 	}
 
 	values := map[string]string{
