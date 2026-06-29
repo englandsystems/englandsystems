@@ -3,148 +3,174 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>England Systems</title>
+    <meta name="theme-color" content="#030303" />
+    <meta name="description" content="England Systems builds practical websites, dashboards, automations, and lightweight custom software for small businesses." />
+    <title>Websites &amp; Software for Small Businesses | England Systems</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body data-active-section="home">
     <canvas id="edge-particles" aria-hidden="true"></canvas>
 
     <header class="site-header" aria-label="Primary">
-      <a class="brand" href="#home" aria-label="England Systems home" data-section-link>
-        <span class="brand-mark">
-          <img src="/static/logo.webp" alt="" />
-        </span>
+      <a class="brand" href="#home" aria-label="England Systems home">
+        <span class="brand-mark"><img src="/static/logo.webp" alt="" /></span>
         <span class="brand-name">England Systems</span>
       </a>
       <nav class="site-nav" id="primary-navigation" aria-label="Page sections">
-        <a href="#home" data-section-link>Home</a>
-        <a href="#about" data-section-link>About</a>
-        <a href="#services" data-section-link>Services</a>
-        <a href="#contact" data-section-link>Contact</a>
+        <a href="#services">Services</a>
+        <a href="#examples">Examples</a>
+        <a href="#about">About</a>
+        <a class="nav-cta" href="#contact">Start a Project</a>
       </nav>
     </header>
 
     <main class="home-page">
-      <section class="hero home-section is-active" id="home" aria-labelledby="hero-title" data-section-panel>
+      <section class="hero page-section" id="home" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <p class="eyebrow">Systems. Software. Infrastructure.</p>
-          <h1 id="hero-title">England Systems</h1>
+          <p class="eyebrow">Practical software for small businesses</p>
+          <h1 id="hero-title">Clean websites. Simple tools. Better business systems.</h1>
           <p class="lede">
-            How can we help make your business more productive?
-          </p>
-          <p class="hero-support">
-            We evaluate where your business is today, then help implement
-            software and systems that improve productivity and longevity.
+            England Systems helps small businesses replace messy manual work with professional websites, dashboards, automations, and lightweight custom software.
           </p>
           <div class="hero-actions" aria-label="Page actions">
-            <a class="button primary" href="#contact" data-section-link>Contact</a>
-            <a class="button secondary" href="https://github.com/englandsystems">GitHub</a>
+            <a class="button primary" href="#contact">Tell Me What You Need</a>
+            <a class="button secondary" href="#examples">See What We Build</a>
           </div>
+          <p class="hero-note">Tell me what you are trying to fix, build, automate, or clean up.</p>
         </div>
       </section>
 
-      <section class="about-section home-section" id="about" aria-labelledby="about-title" data-section-panel hidden>
+      <section class="page-section audience-section" id="who-we-help" aria-labelledby="audience-title">
+        <div class="section-heading">
+          <p class="eyebrow">Who we help</p>
+          <h2 id="audience-title">Better tools without a massive software department.</h2>
+          <p>We work with local service businesses, contractors, restaurants, retailers, consultants, independent operators, and small teams whose current process has become harder to manage than it should be.</p>
+        </div>
+        <ul class="fit-list" aria-label="Signs England Systems may be a good fit">
+          <li>Important work lives in spreadsheets, paper forms, or scattered messages.</li>
+          <li>The same information gets copied and entered more than once.</li>
+          <li>Clients, jobs, invoices, inventory, or reports are difficult to track.</li>
+          <li>Your website is missing, outdated, or unclear about what you do.</li>
+          <li>You need a tool built around your workflow, not another oversized platform.</li>
+          <li>You want one practical technical partner for the build and what comes after.</li>
+        </ul>
+      </section>
+
+      <section class="page-section problems-section" id="problems" aria-labelledby="problems-title">
+        <div class="section-heading compact-heading">
+          <p class="eyebrow">Problems we solve</p>
+          <h2 id="problems-title">Start with the bottleneck, not the technology.</h2>
+        </div>
+        <div class="card-grid problem-grid">
+          <article class="info-card">
+            <span class="card-number">01</span>
+            <h3>Manual work is eating your time</h3>
+            <p>Automate repetitive tasks, organize information, and reduce double entry with a tool that fits the way your team works.</p>
+          </article>
+          <article class="info-card">
+            <span class="card-number">02</span>
+            <h3>Your website does not explain the business</h3>
+            <p>Give customers a clear, professional experience that explains what you do and makes the next step obvious.</p>
+          </article>
+          <article class="info-card">
+            <span class="card-number">03</span>
+            <h3>Your reports are scattered</h3>
+            <p>Turn spreadsheets and raw data into useful dashboards, graphs, and summaries that make decisions easier.</p>
+          </article>
+          <article class="info-card">
+            <span class="card-number">04</span>
+            <h3>Your client or invoice process is messy</h3>
+            <p>Track clients, generate invoices, store job details, and manage follow-up in one straightforward system.</p>
+          </article>
+          <article class="info-card">
+            <span class="card-number">05</span>
+            <h3>You need software, but nothing huge</h3>
+            <p>Build only what solves the real problem, without unnecessary features, layers, or enterprise complexity.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="page-section services-section" id="services" aria-labelledby="services-title">
+        <div class="section-heading">
+          <p class="eyebrow">Services</p>
+          <h2 id="services-title">Practical systems built around real work.</h2>
+          <p>Projects can start with a focused website, a single internal workflow, or a connected set of tools. The goal is the same: make the business easier to understand and operate.</p>
+        </div>
+        <div class="service-list" aria-label="Available services">
+          <article class="service-item">
+            <h3>Small Business Websites</h3>
+            <p>Clear, professional websites that build trust, explain your services, work well on every screen, and give customers an obvious way to contact you.</p>
+          </article>
+          <article class="service-item">
+            <h3>Internal Tools &amp; Dashboards</h3>
+            <p>Lightweight systems for clients, jobs, scheduling, invoices, inventory, reporting, and the information your team uses every day.</p>
+          </article>
+          <article class="service-item">
+            <h3>Workflow Automation</h3>
+            <p>Forms, notifications, document generation, data cleanup, and integrations that remove repetitive steps and reduce avoidable errors.</p>
+          </article>
+          <article class="service-item">
+            <h3>Hosting &amp; Maintenance</h3>
+            <p>Deployment, monitoring, updates, and ongoing support so your website or software keeps working after launch.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="page-section examples-section" id="examples" aria-labelledby="examples-title">
+        <div class="section-heading compact-heading">
+          <p class="eyebrow">Things we can build</p>
+          <h2 id="examples-title">Small systems that make a measurable difference.</h2>
+        </div>
+        <div class="example-list">
+          <div><strong>Customer websites</strong><span>Service pages, lead forms, portfolios, menus, and local business sites</span></div>
+          <div><strong>Operations dashboards</strong><span>Sales, labor, inventory, job status, and performance reporting</span></div>
+          <div><strong>Client and job trackers</strong><span>Contact records, project details, notes, status, and follow-up</span></div>
+          <div><strong>Forms and approvals</strong><span>Digital intake, requests, inspections, checklists, and internal workflows</span></div>
+          <div><strong>Invoice and document tools</strong><span>Repeatable quotes, invoices, reports, PDFs, and record keeping</span></div>
+          <div><strong>Purpose-built automations</strong><span>Notifications, reminders, data transfers, and recurring office tasks</span></div>
+        </div>
+      </section>
+
+      <section class="page-section about-section" id="about" aria-labelledby="about-title">
         <div class="about-copy">
-          <p class="eyebrow">About</p>
+          <p class="eyebrow">About England Systems</p>
           <div class="about-heading">
-            <h2 id="about-title">From Chick-fil-A to Software Development</h2>
+            <h2 id="about-title">Built from firsthand small-business operations.</h2>
             <figure class="about-photo">
-              <img src="/static/me.webp" alt="Phillip England" />
-              <figcaption>Phillip England, founder of England Systems</figcaption>
+              <img src="/static/me.webp" alt="Phillip England, founder of England Systems" />
             </figure>
           </div>
-          <p>
-            England Systems grew out of my work in finance across two
-            Chick-fil-A locations in Tulsa, Oklahoma. I taught myself software
-            development by solving real operational problems: invoices,
-            translation workflows, birthday-message automation, websites,
-            reporting graphs, and tools that made work clearer.
-          </p>
-          <p>
-            The work starts by understanding how the business actually runs,
-            then removing friction with practical systems, useful software,
-            better documentation, or team education.
-          </p>
+          <p>I'm Phillip England. England Systems grew out of my finance and operations work across two Chick-fil-A locations in Tulsa, where I learned software development by solving problems the business dealt with every day.</p>
+          <p>That work included invoice systems, translation workflows, automated team communication, websites, reporting graphs, and internal tools. It shaped how I approach every project now: understand the work first, build the simplest useful solution, and make sure the people using it can rely on it.</p>
         </div>
       </section>
 
-      <section class="services-section home-section" id="services" aria-labelledby="services-title" data-section-panel hidden>
-        <div class="services-copy">
-          <p class="eyebrow">Services</p>
-          <div class="services-heading">
-            <h2 id="services-title">Practical websites and software for growing businesses</h2>
-            <p>
-              England Systems builds web tools around the work your business
-              actually needs done: establishing trust online, explaining your
-              services clearly, or streamlining daily operations.
-            </p>
-          </div>
-          <div class="service-list" aria-label="Available services">
-            <article class="service-item">
-              <h3>Basic Websites</h3>
-              <p>
-                Lean, professional sites for branding and web presence. This is
-                a strong fit for landing pages, small business sites,
-                photography portfolios, and simple pages that make it easy for
-                people to understand who you are and contact you.
-              </p>
-            </article>
-            <article class="service-item">
-              <h3>Business-Class Websites</h3>
-              <p>
-                Larger sites with more structure, depth, and content. These may
-                include nested pages, educational resources, service libraries,
-                documentation, or other material that goes beyond a simple
-                brand presence.
-              </p>
-            </article>
-            <article class="service-item">
-              <h3>Web Applications</h3>
-              <p>
-                Custom software for operational workflows, including time punch
-                systems, scheduling tools, inventory tracking, invoicing,
-                reporting dashboards, and data visualization software.
-              </p>
-            </article>
-            <article class="service-item">
-              <h3>Hosting</h3>
-              <p>
-                Hosting and deployment support tailored to the size, traffic,
-                security, and maintenance needs of the project.
-              </p>
-            </article>
-          </div>
+      <section class="page-section home-contact" id="contact" aria-labelledby="contact-title">
+        <div class="contact-intro">
+          <p class="eyebrow">Start a project</p>
+          <h2 id="contact-title">What are you trying to fix, build, automate, or clean up?</h2>
+          <p>You do not need a technical specification. Describe the business problem, the current process, and what a better outcome would look like. I’ll follow up to discuss whether England Systems is a good fit.</p>
         </div>
-      </section>
-
-      <section class="home-contact home-section" id="contact" aria-labelledby="contact-title" data-section-panel hidden>
         <div class="contact-layout">
           <form class="contact-form" action="/contact" method="post" data-contact-form>
-            <div class="form-heading">
-              <p class="eyebrow">Contact</p>
-            </div>
+            <label><span>Name</span><input name="name" autocomplete="name" maxlength="120" required /></label>
+            <label><span>Email</span><input type="email" name="email" autocomplete="email" maxlength="254" required /></label>
+            <label><span>Phone <small>(optional)</small></span><input type="tel" name="phone" autocomplete="tel" inputmode="tel" maxlength="40" pattern="[+]?[0-9 ().-]*[0-9][0-9 ().-]*" title="Enter a phone number using 7 to 15 digits." /></label>
             <label>
-              <span>Name</span>
-              <input name="name" autocomplete="name" maxlength="120" required />
-            </label>
-            <label>
-              <span>Email</span>
-              <input type="email" name="email" autocomplete="email" maxlength="254" required />
-            </label>
-            <label>
-              <span>Phone</span>
-              <input type="tel" name="phone" autocomplete="tel" inputmode="tel" maxlength="40" pattern="[+]?[0-9 ().-]*[0-9][0-9 ().-]*" title="Enter a phone number using 7 to 15 digits." />
-            </label>
-            <label>
-              <span>How can we help?</span>
-              <textarea name="message" maxlength="1000" data-character-counter required></textarea>
+              <span>What do you need help with?</span>
+              <textarea name="message" maxlength="1000" placeholder="Tell me what is not working well today and what you would like to improve." data-character-counter required></textarea>
               <small class="character-count" data-character-count>1000 characters left</small>
             </label>
-            <button class="button primary" type="submit">Send</button>
+            <button class="button primary" type="submit">Tell Me What You Need</button>
           </form>
         </div>
       </section>
     </main>
+
+    <footer class="site-footer">
+      <span>England Systems</span>
+      <span>Practical websites and software systems for small businesses.</span>
+    </footer>
 
     <script src="/static/particles.js"></script>
     <script src="/static/app.js"></script>

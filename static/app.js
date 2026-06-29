@@ -1,139 +1,15 @@
-const transitionLinks = 'a[data-transition-link]';
-const sectionIds = ["home", "about", "services", "contact"];
-
-function getMain(documentRoot = document) {
-  return documentRoot.querySelector("main");
-}
-
-function shouldHandleNavigation(event, link) {
-  if (
-    event.defaultPrevented ||
-    event.button !== 0 ||
-    event.metaKey ||
-    event.ctrlKey ||
-    event.shiftKey ||
-    event.altKey ||
-    link.target
-  ) {
-    return false;
-  }
-
-  return link.origin === window.location.origin && link.pathname !== window.location.pathname;
-}
-
-async function fetchPage(url) {
-  const response = await fetch(url, {
-    headers: {
-      Accept: "text/html",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Unable to load ${url}`);
-  }
-
-  const html = await response.text();
-  return new DOMParser().parseFromString(html, "text/html");
-}
-
-function swapPage(nextDocument, url, shouldPushState) {
-  const currentMain = getMain();
-  const nextMain = getMain(nextDocument);
-
-  if (!currentMain || !nextMain) {
-    window.location.href = url;
-    return;
-  }
-
-  document.title = nextDocument.title;
-  currentMain.className = nextMain.className;
-  currentMain.innerHTML = nextMain.innerHTML;
-
-  if (shouldPushState) {
-    window.history.pushState({}, "", url);
-  }
-
-  initContactEnhancements();
-}
-
-async function navigate(url, shouldPushState = true) {
-  const nextDocument = await fetchPage(url);
-
-  if (!document.startViewTransition) {
-    swapPage(nextDocument, url, shouldPushState);
-    return;
-  }
-
-  document.startViewTransition(() => {
-    swapPage(nextDocument, url, shouldPushState);
-  });
-}
-
-document.addEventListener("click", (event) => {
-  const link = event.target.closest(transitionLinks);
-
-  if (!link || !shouldHandleNavigation(event, link)) {
-    return;
-  }
-
-  event.preventDefault();
-  navigate(link.href).catch(() => {
-    window.location.href = link.href;
-  });
-});
-
-window.addEventListener("popstate", () => {
-  if (document.querySelector("[data-section-panel]")) {
-    setActiveSection(window.location.hash || "home", false);
-    return;
-  }
-
-  navigate(window.location.href, false).catch(() => {
-    window.location.reload();
-  });
-});
-
 function updateCharacterCounter(textarea) {
   const counter = textarea.parentElement?.querySelector("[data-character-count]");
   const maxLength = Number(textarea.getAttribute("maxlength"));
 
-  if (!counter || !maxLength) {
-    return;
-  }
+  if (!counter || !maxLength) return;
 
   const remaining = Math.max(0, maxLength - textarea.value.length);
   counter.textContent = `${remaining} character${remaining === 1 ? "" : "s"} left`;
 }
 
-function initContactEnhancements() {
-  document.querySelectorAll("[data-character-counter]").forEach(updateCharacterCounter);
-
-  document.querySelectorAll("[data-contact-form]").forEach((form) => {
-    if (form.dataset.validationReady === "true") {
-      return;
-    }
-
-    form.dataset.validationReady = "true";
-    form.addEventListener("input", (event) => validateContactField(event.target));
-    form.addEventListener("submit", (event) => {
-      form.querySelectorAll("input, textarea").forEach(validateContactField);
-      if (!form.checkValidity()) {
-        event.preventDefault();
-        form.reportValidity();
-      }
-    });
-  });
-
-  const success = document.querySelector("[data-contact-success]");
-  if (success) {
-    success.hidden = new URLSearchParams(window.location.search).get("sent") !== "1";
-  }
-}
-
 function validateContactField(field) {
-  if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) {
-    return;
-  }
+  if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) return;
 
   field.setCustomValidity("");
   const value = field.value.trim();
@@ -153,9 +29,7 @@ function validateContactField(field) {
 
   if (field.name === "email" && value !== "") {
     const emailPattern = /^[^\s@]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$/;
-    if (!emailPattern.test(value)) {
-      field.setCustomValidity("Enter a valid email address.");
-    }
+    if (!emailPattern.test(value)) field.setCustomValidity("Enter a valid email address.");
   }
 
   if (field.name === "phone" && value !== "") {
@@ -169,89 +43,51 @@ function validateContactField(field) {
   }
 }
 
-function normalizeSectionId(hash) {
-  const sectionId = hash.replace(/^#/, "");
-  return sectionIds.includes(sectionId) ? sectionId : "home";
-}
+function initContactEnhancements() {
+  document.querySelectorAll("[data-character-counter]").forEach(updateCharacterCounter);
 
-function setActiveSection(sectionId, shouldPushState = true) {
-  const activeSection = normalizeSectionId(sectionId);
-  const panels = document.querySelectorAll("[data-section-panel]");
+  document.querySelectorAll("[data-contact-form]").forEach((form) => {
+    form.addEventListener("input", (event) => {
+      validateContactField(event.target);
+      if (event.target.matches("[data-character-counter]")) updateCharacterCounter(event.target);
+    });
 
-  if (!panels.length) {
-    return;
-  }
-
-  document.body.dataset.activeSection = activeSection;
-
-  panels.forEach((panel) => {
-    const isActive = panel.id === activeSection;
-    panel.hidden = false;
-    panel.setAttribute("aria-hidden", String(!isActive));
-
-    if (isActive) {
-      window.requestAnimationFrame(() => {
-        panel.classList.add("is-active");
-      });
-    } else {
-      panel.classList.remove("is-active");
-      window.setTimeout(() => {
-        if (!panel.classList.contains("is-active")) {
-          panel.hidden = true;
-        }
-      }, 380);
-    }
+    form.addEventListener("submit", (event) => {
+      form.querySelectorAll("input, textarea").forEach(validateContactField);
+      if (!form.checkValidity()) {
+        event.preventDefault();
+        form.reportValidity();
+      }
+    });
   });
 
-  document.querySelectorAll("[data-section-link]").forEach((link) => {
-    const linkSection = normalizeSectionId(link.hash);
-    const isCurrent = linkSection === activeSection;
-
-    if (isCurrent) {
-      link.setAttribute("aria-current", "page");
-    } else {
-      link.removeAttribute("aria-current");
-    }
-  });
-
-  if (shouldPushState) {
-    const nextUrl = activeSection === "home" ? window.location.pathname : `#${activeSection}`;
-    window.history.pushState({ sectionId: activeSection }, "", nextUrl);
-  }
-
-  window.dispatchEvent(new CustomEvent("sectionchange", { detail: { sectionId: activeSection } }));
+  const success = document.querySelector("[data-contact-success]");
+  if (success) success.hidden = new URLSearchParams(window.location.search).get("sent") !== "1";
 }
 
-function initSectionNavigation() {
-  const panels = document.querySelectorAll("[data-section-panel]");
+function initSectionTracking() {
+  const links = [...document.querySelectorAll('.site-nav a[href^="#"]')];
+  if (!links.length || !("IntersectionObserver" in window)) return;
 
-  if (!panels.length) {
-    return;
-  }
+  const sections = links
+    .map((link) => document.querySelector(link.getAttribute("href")))
+    .filter(Boolean);
 
-  document.addEventListener("click", (event) => {
-    const link = event.target.closest("[data-section-link]");
+  const observer = new IntersectionObserver((entries) => {
+    const visible = entries
+      .filter((entry) => entry.isIntersecting)
+      .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
 
-    if (!link || link.pathname !== window.location.pathname || link.origin !== window.location.origin) {
-      return;
-    }
+    if (!visible) return;
+    document.body.dataset.activeSection = visible.target.id;
+    links.forEach((link) => {
+      if (link.getAttribute("href") === `#${visible.target.id}`) link.setAttribute("aria-current", "page");
+      else link.removeAttribute("aria-current");
+    });
+  }, { rootMargin: "-25% 0px -55%", threshold: [0, 0.1, 0.3] });
 
-    event.preventDefault();
-    setActiveSection(link.hash);
-  });
-
-  setActiveSection(window.location.hash || "home", false);
+  sections.forEach((section) => observer.observe(section));
 }
-
-document.addEventListener("input", (event) => {
-  if (event.target.matches("[data-character-counter]")) {
-    updateCharacterCounter(event.target);
-  }
-});
-
-window.addEventListener("hashchange", () => {
-  setActiveSection(window.location.hash || "home", false);
-});
 
 initContactEnhancements();
-initSectionNavigation();
+initSectionTracking();

@@ -3,7 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Contact | England Systems</title>
+    <meta name="theme-color" content="#030303" />
+    <meta name="description" content="Tell England Systems what you need to fix, build, automate, or clean up in your small business." />
+    <title>Start a Project | England Systems</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
@@ -17,10 +19,10 @@
         <span class="brand-name">England Systems</span>
       </a>
       <nav class="site-nav" id="primary-navigation" aria-label="Page sections">
-        <a href="/#home">Home</a>
-        <a href="/#about">About</a>
         <a href="/#services">Services</a>
-        <a href="/#contact">Contact</a>
+        <a href="/#examples">Examples</a>
+        <a href="/#about">About</a>
+        <a class="nav-cta" href="/#contact">Start a Project</a>
       </nav>
     </header>
 
@@ -28,9 +30,11 @@
       <section class="contact-layout" aria-labelledby="contact-title">
         <form class="contact-form" action="/contact" method="post" data-contact-form>
           <div class="form-heading">
-            <p class="eyebrow">Contact</p>
+            <p class="eyebrow">Start a project</p>
+            <h1 id="contact-title">Tell me what you need.</h1>
+            <p>Describe what you are trying to fix, build, automate, or clean up. You do not need a technical specification.</p>
           </div>
-          <p class="form-success" data-contact-success hidden>Message received. We will follow up soon.</p>
+          <p class="form-success" data-contact-success hidden>Message received. I will follow up soon.</p>
           <label>
             <span>Name</span>
             <input name="name" type="text" autocomplete="name" maxlength="120" required />
@@ -42,17 +46,17 @@
           </label>
 
           <label>
-            <span>Phone</span>
+            <span>Phone <small>(optional)</small></span>
             <input name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="40" pattern="[+]?[0-9 ().-]*[0-9][0-9 ().-]*" title="Enter a phone number using 7 to 15 digits." />
           </label>
 
           <label>
-            <span>How can we help?</span>
-            <textarea name="message" rows="6" maxlength="1000" data-character-counter required></textarea>
+            <span>What do you need help with?</span>
+            <textarea name="message" rows="6" maxlength="1000" placeholder="Tell me what is not working well today and what you would like to improve." data-character-counter required></textarea>
             <small class="character-count" data-character-count>1000 characters left</small>
           </label>
 
-          <button class="button primary" type="submit">Send</button>
+          <button class="button primary" type="submit">Tell Me What You Need</button>
         </form>
       </section>
     </main>

@@ -6,9 +6,9 @@ const config = {
   edgeDepth: 150,
   maxSpeed: 0.22,
   blue: [53, 208, 255],
-  red: [255, 59, 48],
-  yellow: [255, 216, 77],
-  green: [68, 212, 126],
+  red: [53, 208, 255],
+  yellow: [53, 208, 255],
+  green: [53, 208, 255],
 };
 
 let width = 0;
