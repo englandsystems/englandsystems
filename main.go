@@ -96,6 +96,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("/static/", http.FileServer(http.FS(staticFiles)))
 	mux.HandleFunc("/", application.route)
+	mux.HandleFunc("/services", application.services)
 	mux.HandleFunc("/contact", application.contact)
 	mux.HandleFunc("/admin", application.admin)
 	mux.HandleFunc("/admin/login", application.adminLogin)
@@ -168,6 +169,16 @@ func (a *app) route(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.ServeFileFS(w, r, staticFiles, "static/index.html")
+}
+
+func (a *app) services(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		w.Header().Set("Allow", "GET, HEAD")
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	http.Redirect(w, r, "/#services", http.StatusSeeOther)
 }
 
 func (a *app) contact(w http.ResponseWriter, r *http.Request) {

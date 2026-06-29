@@ -183,6 +183,24 @@ func TestContactRejectsInvalidPhoneWithoutSaving(t *testing.T) {
 	}
 }
 
+func TestServicesRedirectsToHomepageSection(t *testing.T) {
+	application := &app{}
+
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		request := httptest.NewRequest(method, "/services", nil)
+		response := httptest.NewRecorder()
+
+		application.services(response, request)
+
+		if response.Code != http.StatusSeeOther {
+			t.Fatalf("%s services status = %d, want %d", method, response.Code, http.StatusSeeOther)
+		}
+		if location := response.Header().Get("Location"); location != "/#services" {
+			t.Fatalf("%s services redirect = %q, want %q", method, location, "/#services")
+		}
+	}
+}
+
 func TestPersistPosixProfileEnvCreatesManagedBlock(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".profile")
 	values := map[string]string{
@@ -283,9 +301,17 @@ func TestCredentialsWorkAcrossWorkingDirectories(t *testing.T) {
 		}
 	}
 	t.Setenv(credentialsPathEnv, "")
+	t.Setenv("HOME", root)
+	t.Setenv("APPDATA", configDir)
+	t.Setenv("USERPROFILE", root)
 	t.Setenv("XDG_CONFIG_HOME", configDir)
 	t.Setenv(adminUsernameEnv, "stale-user")
 	t.Setenv(adminPasswordEnv, "stale-password")
+
+	wantPath, err := credentialsPath()
+	if err != nil {
+		t.Fatalf("resolve credentials path: %v", err)
+	}
 
 	t.Chdir(setFromDir)
 	if err := setCredentials([]string{"--username", "portable-user", "--password", "portable-password"}); err != nil {
@@ -305,7 +331,6 @@ func TestCredentialsWorkAcrossWorkingDirectories(t *testing.T) {
 		t.Fatal("credentials set in one working directory should work when the server runs in another")
 	}
 
-	wantPath := filepath.Join(configDir, "englandsystems", "credentials.json")
 	if _, err := os.Stat(wantPath); err != nil {
 		t.Fatalf("credentials were not saved in the user config directory: %v", err)
 	}

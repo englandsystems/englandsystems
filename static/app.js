@@ -1,5 +1,5 @@
 const transitionLinks = 'a[data-transition-link]';
-const sectionIds = ["home", "about", "contact"];
+const sectionIds = ["home", "about", "services", "contact"];
 
 function getMain(documentRoot = document) {
   return documentRoot.querySelector("main");
