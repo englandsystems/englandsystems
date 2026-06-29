@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -69,6 +70,26 @@ func TestDatabasePathRejectsRelativePath(t *testing.T) {
 
 	if _, err := databasePath(); err == nil {
 		t.Fatalf("databasePath should reject a relative %s", dbPathEnv)
+	}
+}
+
+func TestOpenDBCreatesMissingDatabasePath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "data", "messages.sqlite3")
+
+	db, err := openDB(path)
+	if err != nil {
+		t.Fatalf("open missing database path: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close database: %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat created database: %v", err)
+	}
+	if !info.Mode().IsRegular() {
+		t.Fatalf("created database mode = %v, want a regular file", info.Mode())
 	}
 }
 
