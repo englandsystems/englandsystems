@@ -521,7 +521,7 @@ main {
 }
 
 .about-photo {
-  flex: 0 0 clamp(82px, 10vw, 128px);
+  flex: 0 0 clamp(128px, 16vw, 216px);
   margin: 0;
 }
 
@@ -856,7 +856,7 @@ h1 {
 }
 
 .about-photo {
-  flex-basis: 76px;
+  flex-basis: 116px;
 }
 
 .home-contact {
