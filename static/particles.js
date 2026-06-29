@@ -6,6 +6,7 @@ const config = {
   edgeDepth: 150,
   maxSpeed: 0.22,
   blue: [53, 208, 255],
+  red: [255, 59, 48],
   yellow: [255, 216, 77],
   green: [68, 212, 126],
 };
@@ -17,11 +18,13 @@ let particles = [];
 let particleState = {
   color: config.blue,
   about: 0,
+  services: 0,
   contact: 0,
 };
 let particleTarget = {
   color: config.blue,
   about: 0,
+  services: 0,
   contact: 0,
 };
 
@@ -97,24 +100,35 @@ function updateParticleState() {
     particleTarget = {
       color: config.green,
       about: 0,
+      services: 0,
       contact: 1,
     };
   } else if (activeSection === "about") {
     particleTarget = {
       color: config.yellow,
       about: 1,
+      services: 0,
+      contact: 0,
+    };
+  } else if (activeSection === "services") {
+    particleTarget = {
+      color: config.red,
+      about: 0,
+      services: 1,
       contact: 0,
     };
   } else if (activeSection === "contact") {
     particleTarget = {
       color: config.green,
       about: 0,
+      services: 0,
       contact: 1,
     };
   } else {
     particleTarget = {
       color: config.blue,
       about: 0,
+      services: 0,
       contact: 0,
     };
   }
@@ -124,12 +138,13 @@ function updateParticleState() {
       return Math.round(easeNumber(channel, particleTarget.color[index], 0.08));
     }),
     about: clamp(easeNumber(particleState.about, particleTarget.about, 0.08)),
+    services: clamp(easeNumber(particleState.services, particleTarget.services, 0.08)),
     contact: clamp(easeNumber(particleState.contact, particleTarget.contact, 0.08)),
   };
 }
 
 function edgeForce(particle) {
-  const edgeDepth = config.edgeDepth + particleState.about * 80 + particleState.contact * 60;
+  const edgeDepth = config.edgeDepth + particleState.about * 80 + particleState.services * 110 + particleState.contact * 60;
   const nearestEdge = Math.min(
     particle.x,
     width - particle.x,
@@ -138,7 +153,7 @@ function edgeForce(particle) {
   );
 
   if (nearestEdge > edgeDepth) {
-    const edgePush = 1 - particleState.about * 0.45 - particleState.contact * 0.3;
+    const edgePush = 1 - particleState.about * 0.45 - particleState.services * 0.2 - particleState.contact * 0.3;
     particle.vx += (particle.x < width / 2 ? -0.008 : 0.008) * edgePush;
     particle.vy += (particle.y < height / 2 ? -0.008 : 0.008) * edgePush;
   }
@@ -157,6 +172,19 @@ function aboutForce(particle) {
 
   particle.vx += (-dy / distance) * orbit - (dx / distance) * pull;
   particle.vy += (dx / distance) * orbit - (dy / distance) * pull;
+}
+
+function servicesForce(particle) {
+  if (particleState.services <= 0) {
+    return;
+  }
+
+  const column = Math.sin(particle.x * 0.024 + particle.pulse) * 0.009 * particleState.services;
+  const lane = Math.sin((particle.y / Math.max(height, 1)) * Math.PI * 4 + particle.pulse) * 0.004 * particleState.services;
+  const centerDrift = ((height / 2 - particle.y) / Math.max(height, 1)) * 0.008 * particleState.services;
+
+  particle.vx += lane;
+  particle.vy += column + centerDrift;
 }
 
 function contactForce(particle) {
@@ -183,10 +211,11 @@ function updateParticle(particle) {
 
   edgeForce(particle);
   aboutForce(particle);
+  servicesForce(particle);
   contactForce(particle);
 
-  const drift = 0.01 + particleState.about * 0.008 + particleState.contact * 0.014;
-  const maxSpeed = config.maxSpeed + particleState.about * 0.08 + particleState.contact * 0.16;
+  const drift = 0.01 + particleState.about * 0.008 + particleState.services * 0.011 + particleState.contact * 0.014;
+  const maxSpeed = config.maxSpeed + particleState.about * 0.08 + particleState.services * 0.12 + particleState.contact * 0.16;
   particle.vx += randomBetween(-drift, drift);
   particle.vy += randomBetween(-drift, drift);
   particle.vx = Math.max(-maxSpeed, Math.min(maxSpeed, particle.vx));
@@ -208,7 +237,7 @@ function drawParticle(particle) {
   ctx.arc(
     particle.x,
     particle.y,
-    particle.radius + particleState.about * 0.35 + particleState.contact * 0.55,
+    particle.radius + particleState.about * 0.35 + particleState.services * 0.25 + particleState.contact * 0.55,
     0,
     Math.PI * 2,
   );
@@ -225,7 +254,7 @@ function drawConnections() {
       const dy = a.y - b.y;
       const distance = Math.hypot(dx, dy);
 
-      const connectionDistance = 90 + particleState.about * 54 - particleState.contact * 18;
+      const connectionDistance = 90 + particleState.about * 54 + particleState.services * 28 - particleState.contact * 18;
 
       if (distance < connectionDistance) {
         ctx.beginPath();
@@ -253,7 +282,7 @@ function animate() {
     Math.max(width, height) * 0.7,
   );
   gradient.addColorStop(0, "rgba(3, 3, 3, 0)");
-  gradient.addColorStop(1, `rgba(${color}, ${0.08 + particleState.about * 0.05 + particleState.contact * 0.05})`);
+  gradient.addColorStop(1, `rgba(${color}, ${0.08 + particleState.about * 0.05 + particleState.services * 0.06 + particleState.contact * 0.05})`);
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 

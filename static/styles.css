@@ -4,6 +4,7 @@
   --text: #f7f7f2;
   --muted: #a7adb7;
   --accent: #35d0ff;
+  --accent-red: #ff3b30;
   --accent-yellow: #ffd84d;
   --accent-green: #44d47e;
   --line: rgba(255, 255, 255, 0.12);
@@ -41,7 +42,7 @@ body[data-active-section="about"] {
 }
 
 body[data-active-section="services"] {
-  --accent: #ff7a59;
+  --accent: var(--accent-red);
 }
 
 body[data-active-section="contact"] {
@@ -550,7 +551,7 @@ main {
 }
 
 .services-section {
-  --accent: #ff7a59;
+  --accent: var(--accent-red);
   display: grid;
   min-height: 100%;
   align-items: center;
