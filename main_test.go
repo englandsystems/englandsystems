@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -29,9 +28,10 @@ func TestHandleCLIHelpPrintsClearHelp(t *testing.T) {
 		"Usage:",
 		"englandsystems [command]",
 		"db-path",
-		"set-credentials",
-		"PORT                         Web server port. Defaults to 9944.",
+		"ENGLANDSYSTEMS_PORT          Web server port. Defaults to 9944.",
 		"ENGLANDSYSTEMS_DB_PATH",
+		"ENGLANDSYSTEMS_ADMIN_USERNAME",
+		"ENGLANDSYSTEMS_ADMIN_PASSWORD",
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("help missing %q:\n%s", want, content)
@@ -53,6 +53,22 @@ func TestHandleCLIDBPathPrintsResolvedPath(t *testing.T) {
 	}
 	if got := strings.TrimSpace(out.String()); got != path {
 		t.Fatalf("db-path output = %q, want %q", got, path)
+	}
+}
+
+func TestDatabasePathRequiresEnvironmentVariable(t *testing.T) {
+	t.Setenv(dbPathEnv, "")
+
+	if _, err := databasePath(); err == nil {
+		t.Fatalf("databasePath should require %s", dbPathEnv)
+	}
+}
+
+func TestDatabasePathRejectsRelativePath(t *testing.T) {
+	t.Setenv(dbPathEnv, "messages.sqlite3")
+
+	if _, err := databasePath(); err == nil {
+		t.Fatalf("databasePath should reject a relative %s", dbPathEnv)
 	}
 }
 
@@ -201,157 +217,30 @@ func TestServicesRedirectsToHomepageSection(t *testing.T) {
 	}
 }
 
-func TestPersistPosixProfileEnvCreatesManagedBlock(t *testing.T) {
-	path := filepath.Join(t.TempDir(), ".profile")
-	values := map[string]string{
-		adminUsernameEnv: "admin",
-		adminPasswordEnv: "pa'ss word",
-	}
+func TestCredentialsValidUsesEnvironment(t *testing.T) {
+	t.Setenv(adminUsernameEnv, "admin")
+	t.Setenv(adminPasswordEnv, "correct horse battery staple")
 
-	if err := persistPosixProfileEnv(path, values); err != nil {
-		t.Fatalf("persist profile env: %v", err)
+	if !credentialsValid("admin", "correct horse battery staple") {
+		t.Fatal("matching environment credentials should be valid")
 	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read profile: %v", err)
-	}
-	content := string(data)
-	if !strings.Contains(content, "export ENGLANDSYSTEMS_ADMIN_USERNAME='admin'") {
-		t.Fatalf("profile missing username export:\n%s", content)
-	}
-	if !strings.Contains(content, "export ENGLANDSYSTEMS_ADMIN_PASSWORD='pa'\\''ss word'") {
-		t.Fatalf("profile missing shell-quoted password export:\n%s", content)
+	if credentialsValid("admin", "wrong password") {
+		t.Fatal("incorrect password should be invalid")
 	}
 }
 
-func TestPersistPosixProfileEnvReplacesExistingManagedBlock(t *testing.T) {
-	path := filepath.Join(t.TempDir(), ".profile")
-	initial := "export KEEP_ME=1\n\n# >>> englandsystems environment >>>\nexport ENGLANDSYSTEMS_ADMIN_USERNAME='old'\n# <<< englandsystems environment <<<\n"
-	if err := os.WriteFile(path, []byte(initial), 0o600); err != nil {
-		t.Fatalf("seed profile: %v", err)
-	}
+func TestCredentialsValidRejectsMissingEnvironment(t *testing.T) {
+	t.Setenv(adminUsernameEnv, "")
+	t.Setenv(adminPasswordEnv, "")
 
-	values := map[string]string{
-		adminUsernameEnv: "new",
-		adminPasswordEnv: "password",
-	}
-	if err := persistPosixProfileEnv(path, values); err != nil {
-		t.Fatalf("persist profile env: %v", err)
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read profile: %v", err)
-	}
-	content := string(data)
-	if strings.Contains(content, "old") {
-		t.Fatalf("profile kept old managed value:\n%s", content)
-	}
-	if !strings.Contains(content, "export KEEP_ME=1") {
-		t.Fatalf("profile removed unmanaged content:\n%s", content)
-	}
-	if strings.Count(content, "# >>> englandsystems environment >>>") != 1 {
-		t.Fatalf("profile should contain one managed block:\n%s", content)
+	if credentialsValid("", "") {
+		t.Fatal("empty environment credentials must not allow login")
 	}
 }
 
-func TestSetCredentialsTakesEffectForRunningServer(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config", "credentials.json")
-	t.Setenv(credentialsPathEnv, path)
-	t.Setenv(adminUsernameEnv, "stale-user")
-	t.Setenv(adminPasswordEnv, "stale-password")
-
-	if err := setCredentials([]string{"--username", "new-user", "--password", "new-password"}); err != nil {
-		t.Fatalf("set credentials: %v", err)
-	}
-
-	// A service keeps its original environment. The credential file must take
-	// precedence so a live process sees updates made by another CLI process.
-	if err := os.Setenv(adminUsernameEnv, "stale-user"); err != nil {
-		t.Fatalf("restore stale username: %v", err)
-	}
-	if err := os.Setenv(adminPasswordEnv, "stale-password"); err != nil {
-		t.Fatalf("restore stale password: %v", err)
-	}
-	if !credentialsValid("new-user", "new-password") {
-		t.Fatal("new credentials should be valid without restarting the server")
-	}
-	if credentialsValid("stale-user", "stale-password") {
-		t.Fatal("stale environment credentials should not override the saved credentials")
-	}
-
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("stat credentials file: %v", err)
-	}
-	if got := info.Mode().Perm(); got != 0o600 {
-		t.Fatalf("credentials file mode = %o, want 600", got)
-	}
-}
-
-func TestCredentialsWorkAcrossWorkingDirectories(t *testing.T) {
-	root := t.TempDir()
-	configDir := filepath.Join(root, "user-config")
-	setFromDir := filepath.Join(root, "set-from")
-	runFromDir := filepath.Join(root, "run-from")
-	for _, path := range []string{setFromDir, runFromDir} {
-		if err := os.Mkdir(path, 0o700); err != nil {
-			t.Fatalf("create working directory: %v", err)
-		}
-	}
-	t.Setenv(credentialsPathEnv, "")
-	t.Setenv("HOME", root)
-	t.Setenv("APPDATA", configDir)
-	t.Setenv("USERPROFILE", root)
-	t.Setenv("XDG_CONFIG_HOME", configDir)
-	t.Setenv(adminUsernameEnv, "stale-user")
-	t.Setenv(adminPasswordEnv, "stale-password")
-
-	wantPath, err := credentialsPath()
-	if err != nil {
-		t.Fatalf("resolve credentials path: %v", err)
-	}
-
-	t.Chdir(setFromDir)
-	if err := setCredentials([]string{"--username", "portable-user", "--password", "portable-password"}); err != nil {
-		t.Fatalf("set credentials from %s: %v", setFromDir, err)
-	}
-
-	// Simulate a separately launched server with its original environment and
-	// a completely different working directory.
-	if err := os.Setenv(adminUsernameEnv, "stale-user"); err != nil {
-		t.Fatalf("restore stale username: %v", err)
-	}
-	if err := os.Setenv(adminPasswordEnv, "stale-password"); err != nil {
-		t.Fatalf("restore stale password: %v", err)
-	}
-	t.Chdir(runFromDir)
-	if !credentialsValid("portable-user", "portable-password") {
-		t.Fatal("credentials set in one working directory should work when the server runs in another")
-	}
-
-	if _, err := os.Stat(wantPath); err != nil {
-		t.Fatalf("credentials were not saved in the user config directory: %v", err)
-	}
-}
-
-func TestCredentialsPathOverrideMustBeAbsolute(t *testing.T) {
-	t.Setenv(credentialsPathEnv, "relative/credentials.json")
-	if _, err := credentialsPath(); err == nil {
-		t.Fatal("relative credentials path should be rejected because it depends on the working directory")
-	}
-}
-
-func TestAdminLoginUsesSavedCredentials(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "credentials.json")
-	t.Setenv(credentialsPathEnv, path)
-	if err := persistAdminCredentials(path, adminCredentialValues{
-		Username: "admin",
-		Password: "correct horse battery staple",
-	}); err != nil {
-		t.Fatalf("persist credentials: %v", err)
-	}
+func TestAdminLoginUsesEnvironmentCredentials(t *testing.T) {
+	t.Setenv(adminUsernameEnv, "admin")
+	t.Setenv(adminPasswordEnv, "correct horse battery staple")
 
 	application := &app{db: newTestDB(t)}
 	request := httptest.NewRequest(

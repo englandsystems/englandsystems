@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"embed"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -16,9 +15,7 @@ import (
 	"net/http"
 	"net/mail"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -28,11 +25,11 @@ import (
 )
 
 const (
-	adminUsernameEnv   = "ENGLANDSYSTEMS_ADMIN_USERNAME"
-	adminPasswordEnv   = "ENGLANDSYSTEMS_ADMIN_PASSWORD"
-	sessionSecretEnv   = "ENGLANDSYSTEMS_SESSION_SECRET"
-	dbPathEnv          = "ENGLANDSYSTEMS_DB_PATH"
-	credentialsPathEnv = "ENGLANDSYSTEMS_CREDENTIALS_PATH"
+	adminUsernameEnv = "ENGLANDSYSTEMS_ADMIN_USERNAME"
+	adminPasswordEnv = "ENGLANDSYSTEMS_ADMIN_PASSWORD"
+	sessionSecretEnv = "ENGLANDSYSTEMS_SESSION_SECRET"
+	dbPathEnv        = "ENGLANDSYSTEMS_DB_PATH"
+	portEnv          = "ENGLANDSYSTEMS_PORT"
 
 	maxNameLength    = 120
 	maxEmailLength   = 254
@@ -55,11 +52,6 @@ var staticFiles embed.FS
 
 type app struct {
 	db *sql.DB
-}
-
-type adminCredentialValues struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
 }
 
 type contactMessage struct {
@@ -103,7 +95,7 @@ func main() {
 	mux.HandleFunc("/admin/logout", application.adminLogout)
 	mux.HandleFunc("/admin/messages/delete", application.deleteMessage)
 
-	addr := ":" + getEnv("PORT", "9944")
+	addr := ":" + getEnv(portEnv, "9944")
 	log.Printf("England Systems listening on http://localhost%s", addr)
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatal(err)
@@ -126,8 +118,6 @@ func handleCLI(args []string, stdout io.Writer) (bool, error) {
 		}
 		fmt.Fprintln(stdout, path)
 		return true, nil
-	case "set-credentials":
-		return true, setCredentials(args[1:])
 	default:
 		fmt.Fprint(stdout, helpText())
 		return true, fmt.Errorf("unknown command %q", args[0])
@@ -143,22 +133,19 @@ Usage:
 Commands:
   help                         Show this help screen.
   db-path                      Print the resolved SQLite database path.
-  set-credentials              Save admin login credentials.
-
 Options:
   -h, --help                   Show this help screen.
 
 Environment:
-  PORT                         Web server port. Defaults to 9944.
-  ENGLANDSYSTEMS_DB_PATH       SQLite database path override.
-  ENGLANDSYSTEMS_CREDENTIALS_PATH
-  ENGLANDSYSTEMS_ADMIN_USERNAME
-  ENGLANDSYSTEMS_ADMIN_PASSWORD
+  ENGLANDSYSTEMS_PORT          Web server port. Defaults to 9944.
+  ENGLANDSYSTEMS_DB_PATH       Required absolute path for the messages database.
+  ENGLANDSYSTEMS_ADMIN_USERNAME  Admin login username.
+  ENGLANDSYSTEMS_ADMIN_PASSWORD  Admin login password.
+  ENGLANDSYSTEMS_SESSION_SECRET  Optional session-signing secret.
 
 Examples:
   englandsystems
   englandsystems db-path
-  englandsystems set-credentials --username "admin" --password "password"
 `
 }
 
@@ -362,44 +349,14 @@ func openDB(path string) (*sql.DB, error) {
 }
 
 func databasePath() (string, error) {
-	if path := os.Getenv(dbPathEnv); path != "" {
-		return path, nil
+	path := strings.TrimSpace(os.Getenv(dbPathEnv))
+	if path == "" {
+		return "", fmt.Errorf("%s is required and must contain an absolute database path", dbPathEnv)
 	}
-
-	dataDir, err := userDataDir()
-	if err != nil {
-		return "", fmt.Errorf("locate user data directory: %w", err)
+	if !filepath.IsAbs(path) {
+		return "", fmt.Errorf("%s must be an absolute path", dbPathEnv)
 	}
-	return filepath.Join(dataDir, "englandsystems.sqlite3"), nil
-}
-
-func userDataDir() (string, error) {
-	switch runtime.GOOS {
-	case "darwin":
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		return filepath.Join(home, "Library", "Application Support", "EnglandSystems"), nil
-	case "windows":
-		if appData := os.Getenv("APPDATA"); appData != "" {
-			return filepath.Join(appData, "EnglandSystems"), nil
-		}
-		configDir, err := os.UserConfigDir()
-		if err != nil {
-			return "", err
-		}
-		return filepath.Join(configDir, "EnglandSystems"), nil
-	default:
-		if dataHome := os.Getenv("XDG_DATA_HOME"); dataHome != "" {
-			return filepath.Join(dataHome, "englandsystems"), nil
-		}
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		return filepath.Join(home, ".local", "share", "englandsystems"), nil
-	}
+	return filepath.Clean(path), nil
 }
 
 func ensureDBDir(path string) error {
@@ -673,20 +630,20 @@ func isValidPhone(phone string) bool {
 }
 
 func credentialsValid(username, password string) bool {
-	credentials, err := loadAdminCredentials()
-	if err != nil || credentials.Username == "" || credentials.Password == "" {
+	adminUsername := os.Getenv(adminUsernameEnv)
+	adminPassword := os.Getenv(adminPasswordEnv)
+	if adminUsername == "" || adminPassword == "" {
 		return false
 	}
 
-	usernameOK := hmac.Equal([]byte(username), []byte(credentials.Username))
-	passwordOK := hmac.Equal([]byte(password), []byte(credentials.Password))
+	usernameOK := hmac.Equal([]byte(username), []byte(adminUsername))
+	passwordOK := hmac.Equal([]byte(password), []byte(adminPassword))
 	return usernameOK && passwordOK
 }
 
 func setSession(w http.ResponseWriter) {
 	expires := time.Now().UTC().Add(sessionDuration)
-	credentials, _ := loadAdminCredentials()
-	payload := fmt.Sprintf("%s|%d", credentials.Username, expires.Unix())
+	payload := fmt.Sprintf("%s|%d", os.Getenv(adminUsernameEnv), expires.Unix())
 	signature := sign(payload)
 	value := base64.RawURLEncoding.EncodeToString([]byte(payload + "|" + signature))
 
@@ -732,8 +689,8 @@ func isAuthenticated(r *http.Request) bool {
 		return false
 	}
 
-	credentials, err := loadAdminCredentials()
-	if err != nil || parts[0] != credentials.Username {
+	adminUsername := os.Getenv(adminUsernameEnv)
+	if adminUsername == "" || parts[0] != adminUsername {
 		return false
 	}
 
@@ -754,8 +711,7 @@ func sessionSecret() []byte {
 	if secret := os.Getenv(sessionSecretEnv); secret != "" {
 		return []byte(secret)
 	}
-	credentials, _ := loadAdminCredentials()
-	sum := sha256.Sum256([]byte(credentials.Username + ":" + credentials.Password))
+	sum := sha256.Sum256([]byte(os.Getenv(adminUsernameEnv) + ":" + os.Getenv(adminPasswordEnv)))
 	return sum[:]
 }
 
@@ -774,221 +730,6 @@ func clientIP(r *http.Request) string {
 		return r.RemoteAddr
 	}
 	return host
-}
-
-func setCredentials(args []string) error {
-	var username, password string
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--username":
-			i++
-			if i >= len(args) {
-				return errors.New("--username requires a value")
-			}
-			username = args[i]
-		case "--password":
-			i++
-			if i >= len(args) {
-				return errors.New("--password requires a value")
-			}
-			password = args[i]
-		default:
-			return fmt.Errorf("unknown argument %q", args[i])
-		}
-	}
-
-	if username == "" || password == "" {
-		return errors.New(`usage: englandsystems set-credentials --username "someusername" --password "somepassword"`)
-	}
-
-	values := map[string]string{
-		adminUsernameEnv: username,
-		adminPasswordEnv: password,
-	}
-	path, err := credentialsPath()
-	if err != nil {
-		return err
-	}
-	if err := persistAdminCredentials(path, adminCredentialValues{Username: username, Password: password}); err != nil {
-		return err
-	}
-	for key, value := range values {
-		os.Setenv(key, value)
-	}
-
-	fmt.Printf("Saved admin credentials to %s. The running server will use them immediately.\n", path)
-	return nil
-}
-
-func credentialsPath() (string, error) {
-	if path := os.Getenv(credentialsPathEnv); path != "" {
-		if !filepath.IsAbs(path) {
-			return "", fmt.Errorf("%s must be an absolute path", credentialsPathEnv)
-		}
-		return filepath.Clean(path), nil
-	}
-
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		return "", fmt.Errorf("locate user config directory: %w", err)
-	}
-	if !filepath.IsAbs(configDir) {
-		return "", fmt.Errorf("user config directory must be an absolute path: %s", configDir)
-	}
-	return filepath.Join(configDir, "englandsystems", "credentials.json"), nil
-}
-
-func loadAdminCredentials() (adminCredentialValues, error) {
-	path, err := credentialsPath()
-	if err != nil {
-		return adminCredentialValues{}, err
-	}
-
-	data, err := os.ReadFile(path)
-	if err == nil {
-		var credentials adminCredentialValues
-		if err := json.Unmarshal(data, &credentials); err != nil {
-			return adminCredentialValues{}, fmt.Errorf("read admin credentials from %s: %w", path, err)
-		}
-		return credentials, nil
-	}
-	if !errors.Is(err, os.ErrNotExist) {
-		return adminCredentialValues{}, fmt.Errorf("read admin credentials from %s: %w", path, err)
-	}
-
-	// Keep environment variables as a compatibility path for existing deployments.
-	return adminCredentialValues{
-		Username: os.Getenv(adminUsernameEnv),
-		Password: os.Getenv(adminPasswordEnv),
-	}, nil
-}
-
-func persistAdminCredentials(path string, credentials adminCredentialValues) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return fmt.Errorf("create credentials directory: %w", err)
-	}
-	data, err := json.Marshal(credentials)
-	if err != nil {
-		return fmt.Errorf("encode admin credentials: %w", err)
-	}
-	data = append(data, '\n')
-
-	temp, err := os.CreateTemp(filepath.Dir(path), ".credentials-*")
-	if err != nil {
-		return fmt.Errorf("create temporary credentials file: %w", err)
-	}
-	tempPath := temp.Name()
-	defer os.Remove(tempPath)
-	if err := temp.Chmod(0o600); err != nil {
-		temp.Close()
-		return fmt.Errorf("secure temporary credentials file: %w", err)
-	}
-	if _, err := temp.Write(data); err != nil {
-		temp.Close()
-		return fmt.Errorf("write temporary credentials file: %w", err)
-	}
-	if err := temp.Close(); err != nil {
-		return fmt.Errorf("close temporary credentials file: %w", err)
-	}
-	if runtime.GOOS == "windows" {
-		_ = os.Remove(path)
-	}
-	if err := os.Rename(tempPath, path); err != nil {
-		return fmt.Errorf("install credentials file: %w", err)
-	}
-	return nil
-}
-
-func persistUserEnv(values map[string]string) error {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("locate user home directory: %w", err)
-	}
-
-	switch runtime.GOOS {
-	case "darwin":
-		if err := persistLaunchctlEnv(values); err != nil {
-			return err
-		}
-		return persistPosixProfileEnv(filepath.Join(home, ".zprofile"), values)
-	case "windows":
-		for key, value := range values {
-			if err := exec.Command("setx", key, value).Run(); err != nil {
-				return fmt.Errorf("persist %s with setx: %w", key, err)
-			}
-		}
-		return nil
-	default:
-		return persistPosixProfileEnv(filepath.Join(home, ".profile"), values)
-	}
-}
-
-func persistLaunchctlEnv(values map[string]string) error {
-	for key, value := range values {
-		if err := exec.Command("launchctl", "setenv", key, value).Run(); err != nil {
-			return fmt.Errorf("persist %s with launchctl: %w", key, err)
-		}
-	}
-	return nil
-}
-
-func persistPosixProfileEnv(path string, values map[string]string) error {
-	const (
-		startMarker = "# >>> englandsystems environment >>>"
-		endMarker   = "# <<< englandsystems environment <<<"
-	)
-
-	existing, err := os.ReadFile(path)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("read %s: %w", path, err)
-	}
-
-	content := string(existing)
-	if start := strings.Index(content, startMarker); start >= 0 {
-		if end := strings.Index(content[start:], endMarker); end >= 0 {
-			end += start + len(endMarker)
-			content = strings.TrimRight(content[:start], "\n") + "\n" + strings.TrimLeft(content[end:], "\n")
-		}
-	}
-
-	var block strings.Builder
-	block.WriteString(startMarker)
-	block.WriteByte('\n')
-	for _, key := range []string{adminUsernameEnv, adminPasswordEnv} {
-		value, ok := values[key]
-		if !ok {
-			continue
-		}
-		block.WriteString("export ")
-		block.WriteString(key)
-		block.WriteByte('=')
-		block.WriteString(posixShellQuote(value))
-		block.WriteByte('\n')
-	}
-	block.WriteString(endMarker)
-	block.WriteByte('\n')
-
-	content = strings.TrimRight(content, "\n")
-	if content != "" {
-		content += "\n\n"
-	}
-	content += block.String()
-
-	mode := os.FileMode(0o600)
-	if info, err := os.Stat(path); err == nil {
-		mode = info.Mode().Perm()
-	}
-	if err := os.WriteFile(path, []byte(content), mode); err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
-	}
-	return nil
-}
-
-func posixShellQuote(value string) string {
-	if value == "" {
-		return "''"
-	}
-	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
 }
 
 func renderAdminLogin(w http.ResponseWriter, message string) {
