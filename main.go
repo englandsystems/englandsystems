@@ -16,6 +16,7 @@ import (
 	"net/mail"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -54,6 +55,11 @@ type app struct {
 	db *sql.DB
 }
 
+type serverConfig struct {
+	databasePath string
+	port         string
+}
+
 type contactMessage struct {
 	ID        int64
 	Name      string
@@ -72,12 +78,12 @@ func main() {
 		return
 	}
 
-	dbPath, err := databasePath()
+	config, err := loadServerConfig()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	db, err := openDB(dbPath)
+	db, err := openDB(config.databasePath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -95,7 +101,7 @@ func main() {
 	mux.HandleFunc("/admin/logout", application.adminLogout)
 	mux.HandleFunc("/admin/messages/delete", application.deleteMessage)
 
-	addr := ":" + getEnv(portEnv, "9944")
+	addr := ":" + config.port
 	log.Printf("England Systems listening on http://localhost%s", addr)
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatal(err)
@@ -137,11 +143,12 @@ Options:
   -h, --help                   Show this help screen.
 
 Environment:
-  ENGLANDSYSTEMS_PORT          Web server port. Defaults to 9944.
-  ENGLANDSYSTEMS_DB_PATH       Required absolute path for the messages database.
+  All variables below are required before starting the server:
+  ENGLANDSYSTEMS_PORT          Web server port (1-65535).
+  ENGLANDSYSTEMS_DB_PATH       Absolute path for the messages database.
   ENGLANDSYSTEMS_ADMIN_USERNAME  Admin login username.
   ENGLANDSYSTEMS_ADMIN_PASSWORD  Admin login password.
-  ENGLANDSYSTEMS_SESSION_SECRET  Optional session-signing secret.
+  ENGLANDSYSTEMS_SESSION_SECRET  Session-signing secret.
 
 Examples:
   englandsystems
@@ -348,15 +355,80 @@ func openDB(path string) (*sql.DB, error) {
 	return db, nil
 }
 
+func loadServerConfig() (serverConfig, error) {
+	required := []string{
+		dbPathEnv,
+		portEnv,
+		adminUsernameEnv,
+		adminPasswordEnv,
+		sessionSecretEnv,
+	}
+
+	var missing []string
+	for _, key := range required {
+		if strings.TrimSpace(os.Getenv(key)) == "" {
+			missing = append(missing, key)
+		}
+	}
+	if len(missing) > 0 {
+		return serverConfig{}, fmt.Errorf("required environment variables are not set: %s", strings.Join(missing, ", "))
+	}
+
+	dbPath, err := databasePath()
+	if err != nil {
+		return serverConfig{}, err
+	}
+
+	port := strings.TrimSpace(os.Getenv(portEnv))
+	portNumber, err := strconv.Atoi(port)
+	if err != nil || portNumber < 1 || portNumber > 65535 {
+		return serverConfig{}, fmt.Errorf("%s must be a port number from 1 to 65535", portEnv)
+	}
+
+	return serverConfig{databasePath: dbPath, port: port}, nil
+}
+
 func databasePath() (string, error) {
 	path := strings.TrimSpace(os.Getenv(dbPathEnv))
 	if path == "" {
-		return "", fmt.Errorf("%s is required and must contain an absolute database path", dbPathEnv)
+		return "", fmt.Errorf("%s is required", dbPathEnv)
 	}
 	if !filepath.IsAbs(path) {
 		return "", fmt.Errorf("%s must be an absolute path", dbPathEnv)
 	}
 	return filepath.Clean(path), nil
+}
+
+func userDataDir() (string, error) {
+	switch runtime.GOOS {
+	case "darwin":
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(home, "Library", "Application Support", "EnglandSystems"), nil
+	case "windows":
+		if appData := strings.TrimSpace(os.Getenv("APPDATA")); appData != "" {
+			return filepath.Join(appData, "EnglandSystems"), nil
+		}
+		configDir, err := os.UserConfigDir()
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(configDir, "EnglandSystems"), nil
+	default:
+		if dataHome := strings.TrimSpace(os.Getenv("XDG_DATA_HOME")); dataHome != "" {
+			if !filepath.IsAbs(dataHome) {
+				return "", fmt.Errorf("XDG_DATA_HOME must be an absolute path")
+			}
+			return filepath.Join(dataHome, "englandsystems"), nil
+		}
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(home, ".local", "share", "englandsystems"), nil
+	}
 }
 
 func ensureDBDir(path string) error {
@@ -708,11 +780,7 @@ func sign(value string) string {
 }
 
 func sessionSecret() []byte {
-	if secret := os.Getenv(sessionSecretEnv); secret != "" {
-		return []byte(secret)
-	}
-	sum := sha256.Sum256([]byte(os.Getenv(adminUsernameEnv) + ":" + os.Getenv(adminPasswordEnv)))
-	return sum[:]
+	return []byte(os.Getenv(sessionSecretEnv))
 }
 
 func clientIP(r *http.Request) string {
@@ -744,14 +812,6 @@ func renderAdminDashboard(w http.ResponseWriter, messages []contactMessage) {
 	if err := adminDashboardTemplate.Execute(w, map[string]any{"Messages": messages}); err != nil {
 		log.Printf("render admin dashboard: %v", err)
 	}
-}
-
-func getEnv(key, fallback string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return fallback
-	}
-	return value
 }
 
 func mustGetwd() string {

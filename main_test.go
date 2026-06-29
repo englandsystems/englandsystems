@@ -29,7 +29,8 @@ func TestHandleCLIHelpPrintsClearHelp(t *testing.T) {
 		"Usage:",
 		"englandsystems [command]",
 		"db-path",
-		"ENGLANDSYSTEMS_PORT          Web server port. Defaults to 9944.",
+		"All variables below are required before starting the server:",
+		"ENGLANDSYSTEMS_PORT          Web server port (1-65535).",
 		"ENGLANDSYSTEMS_DB_PATH",
 		"ENGLANDSYSTEMS_ADMIN_USERNAME",
 		"ENGLANDSYSTEMS_ADMIN_PASSWORD",
@@ -62,6 +63,54 @@ func TestDatabasePathRequiresEnvironmentVariable(t *testing.T) {
 
 	if _, err := databasePath(); err == nil {
 		t.Fatalf("databasePath should require %s", dbPathEnv)
+	}
+}
+
+func TestLoadServerConfigRequiresEveryEnvironmentVariable(t *testing.T) {
+	for _, key := range []string{dbPathEnv, portEnv, adminUsernameEnv, adminPasswordEnv, sessionSecretEnv} {
+		t.Setenv(key, "")
+	}
+
+	_, err := loadServerConfig()
+	if err == nil {
+		t.Fatal("loadServerConfig should reject missing environment variables")
+	}
+	for _, key := range []string{dbPathEnv, portEnv, adminUsernameEnv, adminPasswordEnv, sessionSecretEnv} {
+		if !strings.Contains(err.Error(), key) {
+			t.Fatalf("missing-variable error %q does not mention %s", err, key)
+		}
+	}
+}
+
+func TestLoadServerConfigAcceptsExplicitValidEnvironment(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "messages.sqlite3")
+	t.Setenv(dbPathEnv, dbPath)
+	t.Setenv(portEnv, "9944")
+	t.Setenv(adminUsernameEnv, "admin")
+	t.Setenv(adminPasswordEnv, "correct horse battery staple")
+	t.Setenv(sessionSecretEnv, "a-separate-session-signing-secret")
+
+	config, err := loadServerConfig()
+	if err != nil {
+		t.Fatalf("loadServerConfig: %v", err)
+	}
+	if config.databasePath != dbPath {
+		t.Fatalf("database path = %q, want %q", config.databasePath, dbPath)
+	}
+	if config.port != "9944" {
+		t.Fatalf("port = %q, want 9944", config.port)
+	}
+}
+
+func TestLoadServerConfigRejectsInvalidPort(t *testing.T) {
+	t.Setenv(dbPathEnv, filepath.Join(t.TempDir(), "messages.sqlite3"))
+	t.Setenv(portEnv, "70000")
+	t.Setenv(adminUsernameEnv, "admin")
+	t.Setenv(adminPasswordEnv, "correct horse battery staple")
+	t.Setenv(sessionSecretEnv, "a-separate-session-signing-secret")
+
+	if _, err := loadServerConfig(); err == nil {
+		t.Fatalf("loadServerConfig should reject invalid %s", portEnv)
 	}
 }
 
