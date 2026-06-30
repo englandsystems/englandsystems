@@ -5,7 +5,7 @@ docker:
 	docker run --name englandsystems \
 		--env-file ./.env \
 		-p 9944:9944 \
-		-v /home/phillip/.local/share/englandsystems/englandsystems.sqlite3.db:/data/englandsystems.sqlite3.db \
+		-v /home/phillip/englandsystems/data/englandsystems.sqlite3.db:/data/englandsystems.sqlite3.db \
 		englandsystems:latest;
 
 		

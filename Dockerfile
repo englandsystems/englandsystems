@@ -10,4 +10,4 @@ RUN go build -o englandsystems .
 
 EXPOSE 9944
 
-CMD ["./englandsystems"]
+CMD ["./englandsystems", "--db", "/data/englandsystems.sqlite3.db"]

@@ -6,7 +6,8 @@ England Systems is a Go web application backed by SQLite. Contact-form submissio
 
 - Go 1.25 or newer
 - A writable location for the SQLite database
-- All five application environment variables listed below
+- The four application environment variables listed below
+- An initialized SQLite database supplied with `--db`
 
 ## Environment variables
 
@@ -16,7 +17,6 @@ The server validates every variable before opening the database or listening on 
 
 | Variable | Description | Example |
 | --- | --- | --- |
-| `ENGLANDSYSTEMS_DB_PATH` | Absolute path to the SQLite database file. Parent directories and the database file are created automatically. | `/var/lib/englandsystems/messages.sqlite3` |
 | `ENGLANDSYSTEMS_PORT` | TCP port from 1 through 65535. Supply only the number, without a hostname or colon. | `9944` |
 | `ENGLANDSYSTEMS_ADMIN_USERNAME` | Username used to sign in to `/admin`. | `admin` |
 | `ENGLANDSYSTEMS_ADMIN_PASSWORD` | Admin password. Use a long, unique value and do not commit it. | `replace-with-a-long-random-password` |
@@ -27,18 +27,24 @@ The server validates every variable before opening the database or listening on 
 Export the variables in the same shell that will start the application:
 
 ```sh
-export ENGLANDSYSTEMS_DB_PATH="$PWD/data/messages.sqlite3"
 export ENGLANDSYSTEMS_ADMIN_USERNAME="admin"
 export ENGLANDSYSTEMS_ADMIN_PASSWORD="replace-with-a-long-random-password"
 export ENGLANDSYSTEMS_SESSION_SECRET="$(openssl rand -hex 32)"
 export ENGLANDSYSTEMS_PORT="9944"
 
-go run .
+go run . db
+go run . --db ./data/englandsystems.sqlite3.db
 ```
 
 Then open <http://localhost:9944>. The admin page is at <http://localhost:9944/admin>.
 
-`$PWD/data/messages.sqlite3` expands to an absolute path before it is passed to the application. A value such as `./data/messages.sqlite3` is rejected because `ENGLANDSYSTEMS_DB_PATH` must be absolute.
+`englandsystems db` creates `./data/englandsystems.sqlite3.db` and all required tables. To initialize another location, pass it to the command:
+
+```sh
+go run . db /var/lib/englandsystems/production.sqlite3.db
+```
+
+Starting the server never creates or migrates a database. The `--db` path is required on every launch and may be relative or absolute. Startup fails if the file does not exist or lacks required tables.
 
 If values are kept in a local `.env` file, load that file into the shell explicitly before starting the server, for example with `set -a; source .env; set +a`. Keep `.env` out of version control because it contains credentials and secrets.
 
@@ -46,16 +52,11 @@ If values are kept in a local `.env` file, load that file into the shell explici
 
 ```sh
 go build -o englandsystems .
-./englandsystems
+./englandsystems db
+./englandsystems --db ./data/englandsystems.sqlite3.db
 ```
 
-The same environment variables must be available to the compiled process. For a service manager or hosting platform, configure them in that service's environment rather than only in an interactive shell.
-
-To verify the resolved database path without starting the server:
-
-```sh
-go run . db-path
-```
+The same environment variables and explicit `--db` argument must be available to the compiled process. For a service manager or hosting platform, configure them in that service rather than only in an interactive shell.
 
 To run the tests:
 

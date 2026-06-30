@@ -27,11 +27,10 @@ func TestHandleCLIHelpPrintsClearHelp(t *testing.T) {
 	content := out.String()
 	for _, want := range []string{
 		"Usage:",
-		"englandsystems [command]",
-		"db-path",
+		"englandsystems --db <path>",
+		"db [path]",
 		"All variables below are required before starting the server:",
 		"ENGLANDSYSTEMS_PORT          Web server port (1-65535).",
-		"ENGLANDSYSTEMS_DB_PATH",
 		"ENGLANDSYSTEMS_ADMIN_USERNAME",
 		"ENGLANDSYSTEMS_ADMIN_PASSWORD",
 	} {
@@ -41,41 +40,44 @@ func TestHandleCLIHelpPrintsClearHelp(t *testing.T) {
 	}
 }
 
-func TestHandleCLIDBPathPrintsResolvedPath(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "custom.sqlite3")
-	t.Setenv(dbPathEnv, path)
+func TestHandleCLIDBInitializesDatabase(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "data", "custom.sqlite3")
 	var out bytes.Buffer
 
-	handled, err := handleCLI([]string{"db-path"}, &out)
+	handled, err := handleCLI([]string{"db", path}, &out)
 	if err != nil {
-		t.Fatalf("handle db-path: %v", err)
+		t.Fatalf("handle db: %v", err)
 	}
 	if !handled {
-		t.Fatal("db-path command should be handled")
+		t.Fatal("db command should be handled")
 	}
-	if got := strings.TrimSpace(out.String()); got != path {
-		t.Fatalf("db-path output = %q, want %q", got, path)
+	if !strings.Contains(out.String(), path) {
+		t.Fatalf("db output = %q, want path %q", out.String(), path)
 	}
+	db, err := openDB(path)
+	if err != nil {
+		t.Fatalf("open initialized database: %v", err)
+	}
+	db.Close()
 }
 
-func TestDatabasePathRequiresEnvironmentVariable(t *testing.T) {
-	t.Setenv(dbPathEnv, "")
-
-	if _, err := databasePath(); err == nil {
-		t.Fatalf("databasePath should require %s", dbPathEnv)
+func TestLoadServerConfigRequiresDatabaseArgument(t *testing.T) {
+	setServerEnvironment(t)
+	if _, err := loadServerConfig(nil); err == nil || !strings.Contains(err.Error(), "--db") {
+		t.Fatalf("loadServerConfig error = %v, want required --db argument", err)
 	}
 }
 
 func TestLoadServerConfigRequiresEveryEnvironmentVariable(t *testing.T) {
-	for _, key := range []string{dbPathEnv, portEnv, adminUsernameEnv, adminPasswordEnv, sessionSecretEnv} {
+	for _, key := range []string{portEnv, adminUsernameEnv, adminPasswordEnv, sessionSecretEnv} {
 		t.Setenv(key, "")
 	}
 
-	_, err := loadServerConfig()
+	_, err := loadServerConfig([]string{"--db", "database.sqlite3"})
 	if err == nil {
 		t.Fatal("loadServerConfig should reject missing environment variables")
 	}
-	for _, key := range []string{dbPathEnv, portEnv, adminUsernameEnv, adminPasswordEnv, sessionSecretEnv} {
+	for _, key := range []string{portEnv, adminUsernameEnv, adminPasswordEnv, sessionSecretEnv} {
 		if !strings.Contains(err.Error(), key) {
 			t.Fatalf("missing-variable error %q does not mention %s", err, key)
 		}
@@ -84,13 +86,12 @@ func TestLoadServerConfigRequiresEveryEnvironmentVariable(t *testing.T) {
 
 func TestLoadServerConfigAcceptsExplicitValidEnvironment(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "messages.sqlite3")
-	t.Setenv(dbPathEnv, dbPath)
 	t.Setenv(portEnv, "9944")
 	t.Setenv(adminUsernameEnv, "admin")
 	t.Setenv(adminPasswordEnv, "correct horse battery staple")
 	t.Setenv(sessionSecretEnv, "a-separate-session-signing-secret")
 
-	config, err := loadServerConfig()
+	config, err := loadServerConfig([]string{"--db", dbPath})
 	if err != nil {
 		t.Fatalf("loadServerConfig: %v", err)
 	}
@@ -103,42 +104,41 @@ func TestLoadServerConfigAcceptsExplicitValidEnvironment(t *testing.T) {
 }
 
 func TestLoadServerConfigRejectsInvalidPort(t *testing.T) {
-	t.Setenv(dbPathEnv, filepath.Join(t.TempDir(), "messages.sqlite3"))
 	t.Setenv(portEnv, "70000")
 	t.Setenv(adminUsernameEnv, "admin")
 	t.Setenv(adminPasswordEnv, "correct horse battery staple")
 	t.Setenv(sessionSecretEnv, "a-separate-session-signing-secret")
 
-	if _, err := loadServerConfig(); err == nil {
+	if _, err := loadServerConfig([]string{"--db", filepath.Join(t.TempDir(), "messages.sqlite3")}); err == nil {
 		t.Fatalf("loadServerConfig should reject invalid %s", portEnv)
 	}
 }
 
-func TestDatabasePathRejectsRelativePath(t *testing.T) {
-	t.Setenv(dbPathEnv, "messages.sqlite3")
-
-	if _, err := databasePath(); err == nil {
-		t.Fatalf("databasePath should reject a relative %s", dbPathEnv)
+func TestNormalizeDBPathAcceptsRelativePath(t *testing.T) {
+	path, err := normalizeDBPath("data/messages.sqlite3")
+	if err != nil || !filepath.IsAbs(path) {
+		t.Fatalf("normalizeDBPath = %q, %v; want absolute path", path, err)
 	}
 }
 
-func TestOpenDBCreatesMissingDatabasePath(t *testing.T) {
+func TestOpenDBRejectsMissingDatabasePath(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "data", "messages.sqlite3")
 
-	db, err := openDB(path)
-	if err != nil {
-		t.Fatalf("open missing database path: %v", err)
+	if _, err := openDB(path); err == nil {
+		t.Fatal("openDB should reject a missing database")
 	}
-	if err := db.Close(); err != nil {
-		t.Fatalf("close database: %v", err)
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("startup created database unexpectedly: %v", err)
 	}
+}
 
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("stat created database: %v", err)
+func TestOpenDBRejectsUninitializedDatabase(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "empty.sqlite3")
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
 	}
-	if !info.Mode().IsRegular() {
-		t.Fatalf("created database mode = %v, want a regular file", info.Mode())
+	if _, err := openDB(path); err == nil || !strings.Contains(err.Error(), "not initialized") {
+		t.Fatalf("openDB error = %v, want uninitialized database error", err)
 	}
 }
 
@@ -345,6 +345,9 @@ func newTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
 	path := filepath.Join(t.TempDir(), "test.sqlite3")
+	if err := initializeDB(path); err != nil {
+		t.Fatalf("initialize test db: %v", err)
+	}
 	db, err := openDB(path)
 	if err != nil {
 		t.Fatalf("open test db: %v", err)
@@ -355,6 +358,14 @@ func newTestDB(t *testing.T) *sql.DB {
 		}
 	})
 	return db
+}
+
+func setServerEnvironment(t *testing.T) {
+	t.Helper()
+	t.Setenv(portEnv, "9944")
+	t.Setenv(adminUsernameEnv, "admin")
+	t.Setenv(adminPasswordEnv, "correct horse battery staple")
+	t.Setenv(sessionSecretEnv, "a-separate-session-signing-secret")
 }
 
 func countRows(t *testing.T, db *sql.DB, query string, args ...any) int {

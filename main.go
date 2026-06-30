@@ -16,7 +16,6 @@ import (
 	"net/mail"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -29,8 +28,8 @@ const (
 	adminUsernameEnv = "ENGLANDSYSTEMS_ADMIN_USERNAME"
 	adminPasswordEnv = "ENGLANDSYSTEMS_ADMIN_PASSWORD"
 	sessionSecretEnv = "ENGLANDSYSTEMS_SESSION_SECRET"
-	dbPathEnv        = "ENGLANDSYSTEMS_DB_PATH"
 	portEnv          = "ENGLANDSYSTEMS_PORT"
+	defaultDBPath    = "data/englandsystems.sqlite3.db"
 
 	maxNameLength    = 120
 	maxEmailLength   = 254
@@ -78,7 +77,7 @@ func main() {
 		return
 	}
 
-	config, err := loadServerConfig()
+	config, err := loadServerConfig(os.Args[1:])
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -117,13 +116,25 @@ func handleCLI(args []string, stdout io.Writer) (bool, error) {
 	case "help", "--help", "-h":
 		fmt.Fprint(stdout, helpText())
 		return true, nil
-	case "db-path", "database-path":
-		path, err := databasePath()
+	case "db":
+		if len(args) > 2 {
+			return true, errors.New("usage: englandsystems db [path]")
+		}
+		path := defaultDBPath
+		if len(args) == 2 {
+			path = args[1]
+		}
+		path, err := normalizeDBPath(path)
 		if err != nil {
 			return true, err
 		}
-		fmt.Fprintln(stdout, path)
+		if err := initializeDB(path); err != nil {
+			return true, err
+		}
+		fmt.Fprintf(stdout, "Initialized SQLite database at %s\n", path)
 		return true, nil
+	case "--db":
+		return false, nil
 	default:
 		fmt.Fprint(stdout, helpText())
 		return true, fmt.Errorf("unknown command %q", args[0])
@@ -134,25 +145,29 @@ func helpText() string {
 	return `England Systems
 
 Usage:
-  englandsystems [command]
+  englandsystems --db <path>
+  englandsystems db [path]
 
 Commands:
   help                         Show this help screen.
-  db-path                      Print the resolved SQLite database path.
+  db [path]                    Initialize the SQLite database and all tables.
+                               Default: ./data/englandsystems.sqlite3.db
 Options:
   -h, --help                   Show this help screen.
 
 Environment:
+  The --db argument is required when starting the server. The database must
+  already have been initialized with the db command.
+
   All variables below are required before starting the server:
   ENGLANDSYSTEMS_PORT          Web server port (1-65535).
-  ENGLANDSYSTEMS_DB_PATH       Absolute path for the messages database.
   ENGLANDSYSTEMS_ADMIN_USERNAME  Admin login username.
   ENGLANDSYSTEMS_ADMIN_PASSWORD  Admin login password.
   ENGLANDSYSTEMS_SESSION_SECRET  Session-signing secret.
 
 Examples:
-  englandsystems
-  englandsystems db-path
+  englandsystems db
+  englandsystems --db ./data/englandsystems.sqlite3.db
 `
 }
 
@@ -336,11 +351,18 @@ func (a *app) deleteMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 func openDB(path string) (*sql.DB, error) {
-	if err := ensureDBDir(path); err != nil {
-		return nil, err
+	info, err := os.Stat(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("database %q does not exist; initialize it with: englandsystems db %q", path, path)
+		}
+		return nil, fmt.Errorf("stat database %q: %w", path, err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("database %q is not a regular file", path)
 	}
 
-	db, err := sql.Open("sqlite", path)
+	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path)+"?mode=rw")
 	if err != nil {
 		return nil, err
 	}
@@ -348,16 +370,15 @@ func openDB(path string) (*sql.DB, error) {
 		db.Close()
 		return nil, err
 	}
-	if err := migrate(db); err != nil {
+	if err := validateSchema(db); err != nil {
 		db.Close()
 		return nil, err
 	}
 	return db, nil
 }
 
-func loadServerConfig() (serverConfig, error) {
+func loadServerConfig(args []string) (serverConfig, error) {
 	required := []string{
-		dbPathEnv,
 		portEnv,
 		adminUsernameEnv,
 		adminPasswordEnv,
@@ -374,7 +395,10 @@ func loadServerConfig() (serverConfig, error) {
 		return serverConfig{}, fmt.Errorf("required environment variables are not set: %s", strings.Join(missing, ", "))
 	}
 
-	dbPath, err := databasePath()
+	if len(args) != 2 || args[0] != "--db" || strings.TrimSpace(args[1]) == "" {
+		return serverConfig{}, errors.New("database path is required; usage: englandsystems --db <path>")
+	}
+	dbPath, err := normalizeDBPath(args[1])
 	if err != nil {
 		return serverConfig{}, err
 	}
@@ -388,47 +412,19 @@ func loadServerConfig() (serverConfig, error) {
 	return serverConfig{databasePath: dbPath, port: port}, nil
 }
 
-func databasePath() (string, error) {
-	path := strings.TrimSpace(os.Getenv(dbPathEnv))
+func normalizeDBPath(value string) (string, error) {
+	path := strings.TrimSpace(value)
 	if path == "" {
-		return "", fmt.Errorf("%s is required", dbPathEnv)
+		return "", errors.New("database path must not be empty")
 	}
 	if !filepath.IsAbs(path) {
-		return "", fmt.Errorf("%s must be an absolute path", dbPathEnv)
+		absolute, err := filepath.Abs(path)
+		if err != nil {
+			return "", fmt.Errorf("resolve database path %q: %w", path, err)
+		}
+		path = absolute
 	}
 	return filepath.Clean(path), nil
-}
-
-func userDataDir() (string, error) {
-	switch runtime.GOOS {
-	case "darwin":
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		return filepath.Join(home, "Library", "Application Support", "EnglandSystems"), nil
-	case "windows":
-		if appData := strings.TrimSpace(os.Getenv("APPDATA")); appData != "" {
-			return filepath.Join(appData, "EnglandSystems"), nil
-		}
-		configDir, err := os.UserConfigDir()
-		if err != nil {
-			return "", err
-		}
-		return filepath.Join(configDir, "EnglandSystems"), nil
-	default:
-		if dataHome := strings.TrimSpace(os.Getenv("XDG_DATA_HOME")); dataHome != "" {
-			if !filepath.IsAbs(dataHome) {
-				return "", fmt.Errorf("XDG_DATA_HOME must be an absolute path")
-			}
-			return filepath.Join(dataHome, "englandsystems"), nil
-		}
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		return filepath.Join(home, ".local", "share", "englandsystems"), nil
-	}
 }
 
 func ensureDBDir(path string) error {
@@ -488,6 +484,35 @@ func migrate(db *sql.DB) error {
 	_, err = db.Exec(`ALTER TABLE contact_messages ADD COLUMN phone TEXT NOT NULL DEFAULT ''`)
 	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
 		return err
+	}
+	return nil
+}
+
+func initializeDB(path string) error {
+	if err := ensureDBDir(path); err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	if err := db.Ping(); err != nil {
+		return err
+	}
+	return migrate(db)
+}
+
+func validateSchema(db *sql.DB) error {
+	required := []string{"contact_messages", "login_failures", "banned_ips", "contact_message_submissions"}
+	for _, table := range required {
+		var count int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, table).Scan(&count); err != nil {
+			return fmt.Errorf("inspect database schema: %w", err)
+		}
+		if count != 1 {
+			return fmt.Errorf("database is not initialized: required table %q is missing; run englandsystems db <path>", table)
+		}
 	}
 	return nil
 }
